@@ -1,0 +1,8 @@
+port = 8070
+
+# every 4 minutes
+mirrors_recache_interval_s = 240
+
+backing_mirrors [
+    "http://dl.t2sde.org/mirror/trunk/"
+]

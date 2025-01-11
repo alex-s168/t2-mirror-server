@@ -1,0 +1,5 @@
+*.o
+*.exe
+a.out
+core
+data/
