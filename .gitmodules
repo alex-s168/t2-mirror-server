@@ -1,3 +1,6 @@
 [submodule "C-Http-Server"]
 	path = C-Http-Server
 	url = https://github.com/alex-s168/C-Http-Server
+[submodule "allib"]
+	path = allib
+	url = https://github.com/alex-s168/allib.git

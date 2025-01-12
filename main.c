@@ -4,27 +4,105 @@
 #include <string.h>
 #include <stdlib.h>
 #include <time.h>
+#include <dirent.h>
+#include "allib/dynamic_list/dynamic_list.h"
 
-static struct HttpResponse serve(struct HttpRequest request, void* userdata) {
+static DynamicList TYPES(char) gen_readme(App* app)
+{
+    DynamicList TYPES(char) out;
+    DynamicList_init(&out, sizeof(char), getLIBCAlloc(), 0);
+
+#define addstr(s) \
+    DynamicList_addAll(&out, s, strlen(s), sizeof(char));
+
+    addstr("# T/2 download cache\n");
+    addstr("use by adding the url of this to your /usr/src/t2-src/download/Mirror-Cache file\n");
+    if (app->cfg.enable_remoteurl) {
+        addstr("warning: enable_remoteurl is enabled, which means that anyone with access to this server can cache files with fake URLs!\n");
+    }
+    addstr("\n");
+    addstr("cached files:\n");
+
+    DIR* prefixes = opendir("data");
+    if (prefixes == NULL) {
+        ERRF("can't find data dir? WTF");
+        return out;
+    }
+
+    struct dirent* ent;
+    while ((ent = readdir(prefixes)) != NULL)
+    {
+        if (!strcmp(ent->d_name, "."))
+            continue;
+        if (!strcmp(ent->d_name, ".."))
+            continue;
+
+        if (strlen(ent->d_name) > 1)
+            continue;
+
+        char buf[sizeof("data/") + strlen(ent->d_name) + 1];
+        sprintf(buf, "data/%s", ent->d_name);
+
+        DIR* inpref = opendir(buf);
+        if (!inpref)
+            continue;
+
+        struct dirent* pkg;
+        while ((pkg = readdir(inpref)) != NULL)
+        {
+            if (!strcmp(pkg->d_name, "."))
+                continue;
+            if (!strcmp(pkg->d_name, ".."))
+                continue;
+
+            addstr("* ");
+            addstr(pkg->d_name);
+            addstr("\n");
+        }
+
+        closedir(inpref);
+    }
+
+    closedir(prefixes);
+
+#undef addstr
+
+    return out;
+}
+
+static struct HttpResponse serve(struct HttpRequest request, void* userdata)
+{
+    // TODO: protect against spamming (make configurable)
+
     App* app = userdata;
 
-    struct HttpResponse r = (struct HttpResponse) {
-        .status = 404,
-        .status_msg = "Not Found",
-        .content_type = "text/plain",
-        .content_size = 3,
-        .content_mode = HTTP_CONTENT_BYTES,
-        .content_val.bytes = (HttpBytesContent) {
-            .content = "err",
-            .free_after = false,
-        },
-    };
+    if (!strcmp(request.path, "/")) {
+        // TODO: cache this
+        DynamicList TYPES(char) out = gen_readme(app);
 
-    if (strlen(request.path) > 3) {
+        return (struct HttpResponse) {
+            .status = 200,
+            .status_msg = "OK",
+            .content_type = "text/plain",
+            .content_size = out.fixed.len,
+            .content_mode = HTTP_CONTENT_BYTES,
+            .content_val.bytes = (HttpBytesContent) {
+                .content = out.fixed.data,
+                .free_after = true,
+            }
+        };
+    }
+
+    if (strlen(request.path) > 3 && request.path[0] == '/' && request.path[2] == '/') {
         char const* reqfile = request.path + 3;
-        LOGF("requested: %s", reqfile);
+        char const* original = http_header_get(&request, "X-Orig-URL");
+        LOGF("requested: \"%s\" (original: \"%s\")", reqfile, original ? original : "null");
 
-        int status = ensure_downloaded(app, reqfile);
+        if (!app->cfg.enable_remoteurl) {
+            original = NULL;
+        }
+
+        int status = ensure_downloaded(app, reqfile, original);
         if (status == 0) {
             char* path = get_local_path(reqfile);
             FILE* f = fopen(path, "rb");
@@ -34,16 +112,18 @@ static struct HttpResponse serve(struct HttpRequest request, void* userdata) {
                 rewind(f);
                 char* data = malloc(len);
                 if (data) {
-                    r.status = 200;
-                    r.status_msg = "OK";
-                    r.content_type = http_detectMime(reqfile);
-                    r.content_size = len;
-                    r.content_mode = HTTP_CONTENT_FILE;
-                    r.content_val.file = (HttpFileContent) {
-                        .fp = f,
-                        .close_after = true,
-                    };
                     LOGF("served %s", reqfile);
+                    return (struct HttpResponse) {
+                        .status = 200,
+                        .status_msg = "OK",
+                        .content_type = http_detectMime(reqfile),
+                        .content_size = len,
+                        .content_mode = HTTP_CONTENT_FILE,
+                        .content_val.file = (HttpFileContent) {
+                            .fp = f,
+                            .close_after = true,
+                        }
+                    };
                 } else {
                     fclose(f);
                 }
@@ -54,7 +134,17 @@ static struct HttpResponse serve(struct HttpRequest request, void* userdata) {
         }
     }
 
-    return r;
+    return (struct HttpResponse) {
+        .status = 404,
+        .status_msg = "Not Found",
+        .content_type = "text/plain",
+        .content_size = 3,
+        .content_mode = HTTP_CONTENT_BYTES,
+        .content_val.bytes = (HttpBytesContent) {
+            .content = "err",
+            .free_after = false,
+        },
+    };
 }
 
 static void* mirrors_reload_thread(void* ptr)
@@ -69,6 +159,10 @@ int main(int argc, char **argv)
 {
     AppCfg acfg = {0};
     AppCfg_parse(&acfg, "config.hocon");
+
+    if (acfg.enable_remoteurl) {
+        WARNF("enable_remoteurl is enabled, because of that, make sure that this server is not publicly accessible");
+    }
 
     App app = {0};
     app.cfg = acfg;

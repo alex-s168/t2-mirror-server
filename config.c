@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <hocon.h>
+#include <assert.h>
 #include "app.h"
 
 void AppCfg_parse(AppCfg* cfg, const char * hocon_path)
@@ -18,4 +19,8 @@ void AppCfg_parse(AppCfg* cfg, const char * hocon_path)
     for (size_t i = 0; i < cfg->upstream_mirrors_len; i ++) {
         cfg->upstream_mirrors[i] = cJSON_GetStringValue(cJSON_GetArrayItem(arr, i));
     }
+
+    cJSON* enable_remoteurl = cJSON_GetObjectItem(j, "enable_remoteurl");
+    assert(cJSON_IsBool(enable_remoteurl));
+    cfg->enable_remoteurl = cJSON_IsTrue(enable_remoteurl);
 }

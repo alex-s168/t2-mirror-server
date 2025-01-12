@@ -2,6 +2,7 @@
 #include <cjson/cJSON.h>
 #include <pthread.h>
 #include <stdatomic.h>
+#include <stdbool.h>
 
 typedef struct {
     uint16_t port;
@@ -10,6 +11,8 @@ typedef struct {
 
     char  ** upstream_mirrors;
     size_t   upstream_mirrors_len;
+
+    bool enable_remoteurl;
 } AppCfg;
 
 void AppCfg_parse(AppCfg* cfg, const char * hocon_path);
@@ -37,4 +40,4 @@ typedef struct {
 
 void reload_print_mirrors(App* app);
 char* get_local_path(char const* filename);
-int ensure_downloaded(App* app, char const* filename);
+int ensure_downloaded(App* app, char const* filename, char const* orig_url);

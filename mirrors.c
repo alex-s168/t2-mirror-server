@@ -118,6 +118,7 @@ static int download(char const* outpath, char const* url)
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, download_write);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, file);
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1);
     int status = curl_easy_perform(curl) != CURLE_OK;
     if (status == 0) {
         CURLcode code;
@@ -129,6 +130,16 @@ static int download(char const* outpath, char const* url)
     fclose(file);
     curl_easy_cleanup(curl);
     return status;
+}
+
+static void ensure_prefix_dir(char prefix)
+{
+    char df[7];
+    sprintf(df, "data/%c", prefix);
+    struct stat st = {0};
+    if (stat(df, &st) == -1) {
+        mkdir(df, 0700);
+    }
 }
 
 // 0 = ok
@@ -146,12 +157,7 @@ static int mirror_download(char const* filename, char* outpath, Mirror mirror)
     strcat(url, bf);
     strcat(url, filename);
 
-    char df[7];
-    sprintf(df, "data/%c", filename[0]);
-    struct stat st = {0};
-    if (stat(df, &st) == -1) {
-        mkdir(df, 0700);
-    }
+    ensure_prefix_dir(filename[0]);
 
     int ok = download(outpath, url);
     if (ok != 0) {
@@ -172,7 +178,7 @@ char* get_local_path(char const* filename)
     return outpath;
 }
 
-int ensure_downloaded(App* app, char const* filename) 
+int ensure_downloaded(App* app, char const* filename, char const* orig_url) 
 {
     char* outpath = get_local_path(filename);
 
@@ -197,6 +203,19 @@ int ensure_downloaded(App* app, char const* filename)
         }
 
         pthread_rwlock_unlock(&app->mirrors_lock);
+
+        if (!anyok && orig_url != NULL)
+        {
+            ensure_prefix_dir(filename[0]);
+            int ok = download(outpath, orig_url);
+            if (ok != 0) {
+                remove(outpath);
+                LOGF("could NOT download %s from original url %s", filename, orig_url);
+            } else {
+                LOGF("downloaded %s from original url %s", filename, orig_url);
+                anyok = 1;
+            }
+        }
     }
     else {
         anyok = 1;

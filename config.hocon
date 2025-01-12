@@ -3,6 +3,10 @@ port = 8070
 # every 4 minutes
 mirrors_recache_interval_s = 240
 
+# allow cache download requests to make this server download a file
+# should be disabled if this server is publicly accessible!
+enable_remoteurl = true
+
 backing_mirrors [
     "http://dl.t2sde.org/mirror/trunk/"
 ]
