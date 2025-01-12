@@ -1,3 +1,4 @@
+#include <pthread.h>
 #define DEF_LOG
 #include "C-Http-Server/inc/httpserv.h"
 #include "app.h"
@@ -167,6 +168,8 @@ int main(int argc, char **argv)
     App app = {0};
     app.cfg = acfg;
     pthread_rwlock_init(&app.mirrors_lock, 0);
+    pthread_mutex_init(&app.currently_downloading_lock, 0);
+    DynamicList_init(&app.currently_downloading, sizeof(AlreadyDownloading*), getLIBCAlloc(), 0);
 
     reload_print_mirrors(&app);
     clock_t last_mirrors_reload = clock();

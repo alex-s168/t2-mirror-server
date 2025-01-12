@@ -180,6 +180,10 @@ char* get_local_path(char const* filename)
 
 int ensure_downloaded(App* app, char const* filename, char const* orig_url) 
 {
+    StartDonwloadingRes conc = start_currently_downloading(app, filename);
+    if (conc.is_already_doing)
+        return conc.already_doing_res_status;
+
     char* outpath = get_local_path(filename);
 
     int anyok = 0;
@@ -223,6 +227,9 @@ int ensure_downloaded(App* app, char const* filename, char const* orig_url)
 
     free(outpath);
 
-    if (!anyok) return 1;
-    return 0;
+    int status = (!anyok) ? 1 : 0;
+
+    remove_currently_downloading(app, conc.dl, status);
+
+    return status;
 }
