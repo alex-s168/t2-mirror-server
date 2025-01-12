@@ -161,6 +161,13 @@ int main(int argc, char **argv)
     AppCfg acfg = {0};
     AppCfg_parse(&acfg, "config.hocon");
 
+    if (acfg.http_threads == 0 || acfg.conc_downloads == 0) {
+        ERRF("invalid config (num threads)");
+        return 1;
+    }
+
+    LOGF("using %zu threads", acfg.http_threads);
+
     if (acfg.enable_remoteurl) {
         WARNF("enable_remoteurl is enabled, because of that, make sure that this server is not publicly accessible");
     }
@@ -170,6 +177,7 @@ int main(int argc, char **argv)
     pthread_rwlock_init(&app.mirrors_lock, 0);
     pthread_mutex_init(&app.currently_downloading_lock, 0);
     DynamicList_init(&app.currently_downloading, sizeof(AlreadyDownloading*), getLIBCAlloc(), 0);
+    sem_init(&app.download_sem, 0, app.cfg.conc_downloads);
 
     reload_print_mirrors(&app);
     clock_t last_mirrors_reload = clock();
@@ -177,16 +185,20 @@ int main(int argc, char **argv)
     bool relthr_init = false;
     pthread_t relthr;
 
-    LOGF("launched on %u", acfg.port);
     HttpCfg cfg = (HttpCfg) {
         .port = acfg.port,
         .reuse = 1,
-        .num_threads = 4,
+        .num_threads = cfg.num_threads,
         .con_sleep_us = 1000 * (/*ms*/ 5),
         .max_enq_con = 128,
         .handler = serve,
     };
     Http* server = http_open(cfg, &app);
+    if (server == NULL) {
+        ERRF("can't start http server");
+        return 1;
+    }
+    LOGF("launched on %u", acfg.port);
     while (true) {
         http_tick(server);
 
@@ -207,5 +219,6 @@ int main(int argc, char **argv)
             }
         }
     }
+
 	return 0;
 }

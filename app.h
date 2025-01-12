@@ -3,6 +3,7 @@
 #include <pthread.h>
 #include <stdatomic.h>
 #include <stdbool.h>
+#include <semaphore.h>
 #include "allib/dynamic_list/dynamic_list.h"
 
 typedef struct {
@@ -14,6 +15,9 @@ typedef struct {
     size_t   upstream_mirrors_len;
 
     bool enable_remoteurl;
+
+    size_t http_threads;
+    size_t conc_downloads;
 } AppCfg;
 
 void AppCfg_parse(AppCfg* cfg, const char * hocon_path);
@@ -47,6 +51,8 @@ typedef struct {
 
     pthread_mutex_t currently_downloading_lock;
     DynamicList TYPES(AlreadyDownloading*) currently_downloading;
+
+    sem_t download_sem;
 } App;
 
 typedef struct {

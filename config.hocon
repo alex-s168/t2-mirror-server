@@ -1,5 +1,11 @@
 port = 8070
 
+# the amount of threads in the thread pool for serving http
+http_threads = 12
+
+# how many concurrent downloads allowed
+conc_downloads = 8
+
 # every 4 minutes
 mirrors_recache_interval_s = 240
 

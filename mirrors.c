@@ -2,6 +2,7 @@
 #include <curl/curl.h>
 #include <curl/easy.h>
 #include <pthread.h>
+#include <semaphore.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -184,6 +185,8 @@ int ensure_downloaded(App* app, char const* filename, char const* orig_url)
     if (conc.is_already_doing)
         return conc.already_doing_res_status;
 
+    sem_wait(&app->download_sem);
+
     char* outpath = get_local_path(filename);
 
     int anyok = 0;
@@ -228,6 +231,8 @@ int ensure_downloaded(App* app, char const* filename, char const* orig_url)
     free(outpath);
 
     int status = (!anyok) ? 1 : 0;
+
+    sem_post(&app->download_sem);
 
     remove_currently_downloading(app, conc.dl, status);
 
