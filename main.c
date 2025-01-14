@@ -340,7 +340,7 @@ int main(int argc, char **argv)
 
     /** do in first http tick asyncly */
     bool force_svn_up = true;
-    clock_t last_svn_up = 0;
+    clock_t last_svn_up = clock();
     pthread_t upthrd;
 
     HttpCfg cfg = (HttpCfg) {
@@ -364,7 +364,7 @@ int main(int argc, char **argv)
 
         if (!app.reloading_mirrors_async)
         {
-            double diff = (double) (now - last_mirrors_reload) / CLOCKS_PER_SEC * 1000;
+            double diff = ((double) (now - last_mirrors_reload) / CLOCKS_PER_SEC) * 1000;
             if (diff >= app.cfg.mirrors_recache_intvl)
             {
                 app.reloading_mirrors_async = true;
@@ -375,7 +375,7 @@ int main(int argc, char **argv)
 
         if (app.cfg.svn && !app.reloading_svn_async)
         {
-            double diff = (double) (now - last_svn_up) / CLOCKS_PER_SEC * 1000;
+            double diff = ((double) (now - last_svn_up) / CLOCKS_PER_SEC) * 1000;
             if (force_svn_up || diff >= app.cfg.svn_up_intvl)
             {
                 force_svn_up = false;
