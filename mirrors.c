@@ -17,6 +17,7 @@ static size_t discard_data(void *ptr, size_t size, size_t nmemb, void *userdata)
     return size * nmemb;
 }
 
+// TODO: retry multiple times and average
 // 0 means error
 static double measure_ping(const char * url)
 {
@@ -181,6 +182,23 @@ char* get_local_path(char const* filename)
 
 int ensure_downloaded(App* app, char const* filename, char const* orig_url) 
 {
+    if (app->cfg.svn && orig_url == NULL)
+    {
+        pthread_rwlock_rdlock(&app->svn_pkgs_mut);
+
+        for (size_t i = 0; i < app->svn_pkgs.fixed.len; i ++)
+        {
+            SvnDwPkg* pkg = (SvnDwPkg*)FixedList_get(app->svn_pkgs.fixed, i);
+            if (!strcmp(pkg->name, filename)) {
+                LOGF("found package url in T2 source: \"%s\" = \"%s\"", filename, pkg->url);
+                orig_url = pkg->url;
+                break;
+            }
+        }
+
+        pthread_rwlock_unlock(&app->svn_pkgs_mut);
+    }
+
     StartDonwloadingRes conc = start_currently_downloading(app, filename);
     if (conc.is_already_doing)
         return conc.already_doing_res_status;
@@ -192,7 +210,7 @@ int ensure_downloaded(App* app, char const* filename, char const* orig_url)
     int anyok = 0;
 
     if (access(outpath, F_OK) != 0) {
-        LOGF("%s is not yet cache", filename);
+        LOGF("%s is not yet cached", filename);
 
         pthread_rwlock_rdlock(&app->mirrors_lock);
         

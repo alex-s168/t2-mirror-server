@@ -16,6 +16,9 @@ typedef struct {
 
     bool enable_remoteurl;
 
+    bool svn;
+    double svn_up_intvl;
+
     size_t http_threads;
     size_t conc_downloads;
 } AppCfg;
@@ -43,11 +46,24 @@ typedef struct {
 } AlreadyDownloading;
 
 typedef struct {
+    /** allocation base */
+    char * name;
+    char const* url;
+} SvnDwPkg;
+
+// TODO: replace with hashtab eventually
+typedef DynamicList TYPES(SvnDwPkg) SvnDwPkgList;
+
+typedef struct {
     AppCfg cfg;
 
     atomic_bool reloading_mirrors_async;
     pthread_rwlock_t mirrors_lock;
     Mirrors mirrors;
+
+    atomic_bool reloading_svn_async;
+    SvnDwPkgList svn_pkgs;
+    pthread_rwlock_t svn_pkgs_mut;
 
     pthread_mutex_t currently_downloading_lock;
     DynamicList TYPES(AlreadyDownloading*) currently_downloading;

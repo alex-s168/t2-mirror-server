@@ -24,6 +24,15 @@ void AppCfg_parse(AppCfg* cfg, const char * hocon_path)
     assert(cJSON_IsBool(enable_remoteurl));
     cfg->enable_remoteurl = cJSON_IsTrue(enable_remoteurl);
 
+    cJSON* svn = cJSON_GetObjectItem(j, "svn");
+    if (svn) {
+        cfg->svn = true;
+        cfg->svn_up_intvl = cJSON_GetNumberValue(cJSON_GetObjectItem(svn, "up_interval_s"));
+    } else {
+        cfg->svn = false;
+        cfg->svn_up_intvl = 0;
+    }
+
     cfg->http_threads = (size_t) cJSON_GetNumberValue(cJSON_GetObjectItem(j, "http_threads"));
     cfg->conc_downloads = (size_t) cJSON_GetNumberValue(cJSON_GetObjectItem(j, "conc_downloads"));
 }

@@ -11,7 +11,16 @@ mirrors_recache_interval_s = 240
 
 # allow cache download requests to make this server download a file
 # should be disabled if this server is publicly accessible!
-enable_remoteurl = true
+enable_remoteurl = false
+
+# clone the T2 source, to get this to know official downlaod name - url pairs 
+# (recommended for publicly accessible server)
+# to disable: comment out the following lines
+svn {
+    # warning: a update slows down the server a bit
+    # every 8 minutes
+    up_interval_s = 480
+}
 
 backing_mirrors [
     "http://dl.t2sde.org/mirror/trunk/"
