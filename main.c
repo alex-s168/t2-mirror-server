@@ -9,6 +9,7 @@
 #include <time.h>
 #include <dirent.h>
 #include "allib/dynamic_list/dynamic_list.h"
+#include <signal.h>
 
 static DynamicList TYPES(char) gen_readme(App* app)
 {
@@ -199,11 +200,20 @@ static void svn_up_index_file(App* app, FILE* fp, DynamicList TYPES(SvnDwPkg) * 
 
             *space = '\0';
 
-            strcat((char*) space + 1, ptr);
+	    char* url = strstr(space + 1, "http");
+	    if (!url) {
+		free(ptr);
+		continue;
+	    }
+
+	    char url_last = url[strlen(url)-1];
+	    if (url_last == '/') {
+            	strcat((char*) url, ptr);
+	    }
 
             SvnDwPkg pkg = (SvnDwPkg) {
                 .name = ptr,
-                .url = space + 1
+                .url = url
             };
 
             DynamicList_add(out, &pkg);
@@ -299,6 +309,8 @@ static void* svn_up_thread(void* ptr)
 
 int main(int argc, char **argv)
 {
+    signal(SIGPIPE, SIG_IGN);
+
     App app = {0};
 
     AppCfg_parse(&app.cfg, "config.hocon");
@@ -360,11 +372,12 @@ int main(int argc, char **argv)
     while (true) {
         http_tick(server);
 
+        // TODO: use actual time() instead!!!!!
         clock_t now = clock();
 
         if (!app.reloading_mirrors_async)
         {
-            double diff = ((double) (now - last_mirrors_reload) / CLOCKS_PER_SEC) * 1000;
+            double diff = ((double) (now - last_mirrors_reload) / CLOCKS_PER_SEC);
             if (diff >= app.cfg.mirrors_recache_intvl)
             {
                 app.reloading_mirrors_async = true;
@@ -375,7 +388,7 @@ int main(int argc, char **argv)
 
         if (app.cfg.svn && !app.reloading_svn_async)
         {
-            double diff = ((double) (now - last_svn_up) / CLOCKS_PER_SEC) * 1000;
+            double diff = ((double) (now - last_svn_up) / CLOCKS_PER_SEC);
             if (force_svn_up || diff >= app.cfg.svn_up_intvl)
             {
                 force_svn_up = false;
