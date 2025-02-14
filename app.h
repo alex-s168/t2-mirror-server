@@ -4,6 +4,10 @@
 #include <stdatomic.h>
 #include <stdbool.h>
 #include <semaphore.h>
+#include <time.h>
+#include <unistd.h>
+#define DEF_LOG
+#include "C-Http-Server/inc/httpserv.h"
 #include "allib/dynamic_list/dynamic_list.h"
 
 typedef struct {
@@ -23,7 +27,7 @@ typedef struct {
     size_t conc_downloads;
 } AppCfg;
 
-void AppCfg_parse(AppCfg* cfg, const char * hocon_path);
+void AppCfg_parse(AppCfg* cfg);
 
 typedef struct {
     double delay;
@@ -84,3 +88,15 @@ void remove_currently_downloading(App* app, AlreadyDownloading* m, int status);
 void reload_print_mirrors(App* app);
 char* get_local_path(char const* filename);
 int ensure_downloaded(App* app, char const* filename, char const* orig_url);
+
+typedef time_t timestamp;
+
+static timestamp time_now() {
+    timestamp out;
+    time(&out);
+    return out;
+}
+
+static double time_elapsed_seconds(timestamp begin, timestamp end) {
+    return difftime(end, begin);
+}

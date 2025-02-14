@@ -1,3 +1,4 @@
+config.hocon
 t2-trunk
 *.o
 *.exe

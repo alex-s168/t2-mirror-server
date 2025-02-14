@@ -1,8 +1,6 @@
 #include "allib/kallok/kallok.h"
 #include <ctype.h>
 #include <pthread.h>
-#define DEF_LOG
-#include "C-Http-Server/inc/httpserv.h"
 #include "app.h"
 #include <string.h>
 #include <stdlib.h>
@@ -313,7 +311,7 @@ int main(int argc, char **argv)
 
     App app = {0};
 
-    AppCfg_parse(&app.cfg, "config.hocon");
+    AppCfg_parse(&app.cfg);
 
     if (app.cfg.http_threads == 0 || app.cfg.conc_downloads == 0) {
         ERRF("invalid config (num threads)");
@@ -347,12 +345,12 @@ int main(int argc, char **argv)
     DynamicList_init(&app.svn_pkgs, sizeof(SvnDwPkg), getLIBCAlloc(), 0);
 
     reload_print_mirrors(&app);
-    clock_t last_mirrors_reload = clock();
+    timestamp last_mirrors_reload = time_now();
     pthread_t relthr;
 
     /** do in first http tick asyncly */
     bool force_svn_up = true;
-    clock_t last_svn_up = clock();
+    timestamp last_svn_up = time_now();
     pthread_t upthrd;
 
     HttpCfg cfg = (HttpCfg) {
@@ -372,12 +370,11 @@ int main(int argc, char **argv)
     while (true) {
         http_tick(server);
 
-        // TODO: use actual time() instead!!!!!
-        clock_t now = clock();
+        timestamp now = time_now();
 
         if (!app.reloading_mirrors_async)
         {
-            double diff = ((double) (now - last_mirrors_reload) / CLOCKS_PER_SEC);
+            double diff = time_elapsed_seconds(last_mirrors_reload, now);
             if (diff >= app.cfg.mirrors_recache_intvl)
             {
                 app.reloading_mirrors_async = true;
@@ -388,7 +385,7 @@ int main(int argc, char **argv)
 
         if (app.cfg.svn && !app.reloading_svn_async)
         {
-            double diff = ((double) (now - last_svn_up) / CLOCKS_PER_SEC);
+            double diff = time_elapsed_seconds(last_svn_up, now);
             if (force_svn_up || diff >= app.cfg.svn_up_intvl)
             {
                 force_svn_up = false;
@@ -399,5 +396,5 @@ int main(int argc, char **argv)
         }
     }
 
-	return 0;
+    return 0;
 }

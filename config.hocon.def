@@ -1,13 +1,12 @@
 port = 8070
 
 # the amount of threads in the thread pool for serving http
-http_threads = 12
+http_threads = 4
 
 # how many concurrent downloads allowed
-conc_downloads = 8
+conc_downloads = 4
 
-# every 4 minutes
-mirrors_recache_interval_s = 240
+mirrors_recache_interval_s = 16m
 
 # allow cache download requests to make this server download a file
 # should be disabled if this server is publicly accessible!
@@ -18,10 +17,8 @@ enable_remoteurl = false
 # to disable: comment out the following lines
 svn {
     # warning: a update slows down the server a bit
-    # every 8 minutes
-    up_interval_s = 480
+    up_interval_s = 32m
 }
 
-backing_mirrors [
-    "http://dl.t2sde.org/mirror/trunk/"
-]
+# if you disable svn, put the URL of the T2 mirror here
+backing_mirrors = []
