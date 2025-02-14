@@ -136,7 +136,7 @@ static int download(char const* outpath, char const* url)
 
 static void ensure_prefix_dir(App* app, char prefix)
 {
-    char df[7];
+    char df[strlen(app->cfg.files_path) + 7];
     sprintf(df, "%s/%c", app->cfg.files_path, prefix);
     struct stat st = {0};
     if (stat(df, &st) == -1) {
@@ -173,7 +173,7 @@ static int mirror_download(App* app, char const* filename, char* outpath, Mirror
 
 char* get_local_path(App* app, char const* filename)
 {
-    char* outpath = malloc(5 + 2 + strlen(filename) + 1);
+    char* outpath = malloc(strlen(app->cfg.files_path) + 2 + strlen(filename) + 1);
     if (!outpath)
         return NULL;
     sprintf(outpath, "%s/%c/%s", app->cfg.files_path, filename[0], filename);

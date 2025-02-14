@@ -55,7 +55,7 @@ void AppCfg_parse(AppCfg* cfg)
 
     if (access(cfg_path, F_OK) != 0) {
         if (access("config.hocon.def", F_OK) == 0) {
-            assert(system("cp config.hocon config.hocon.def") == 0);
+            assert(system("cp config.hocon.def config.hocon") == 0);
             LOGF("copied config.hocon.def to config.hocon");
         }
         else {
