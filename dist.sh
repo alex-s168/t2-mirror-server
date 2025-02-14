@@ -14,6 +14,8 @@ submodule () {
 
 submodule "C-Http-Server"
 submodule "allib"
+submodule "allib/build_c"
+submodule "allib/build_c/slowdb"
 
 for f in $files; do
     if [ -f $f ]; then

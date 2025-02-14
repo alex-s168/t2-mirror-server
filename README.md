@@ -9,8 +9,8 @@ Depends on the following t2 packages:
 - `curl`
 - `hocon`
 
-## installing (on T2)
-run `./install.sh`.
+## installing on T2
+`t2 install t2-mirror-server`
 
 Now it installed a SysV-init service which can be start/stopped via `rc t2-mirror-server start`.
 The config can be changed in `/etc/t2-mirror-server.hocon`.
