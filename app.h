@@ -13,6 +13,8 @@
 typedef struct {
     uint16_t port;
 
+    char const * files_path;
+
     double mirrors_recache_intvl;
 
     char  ** upstream_mirrors;
@@ -22,6 +24,7 @@ typedef struct {
 
     bool svn;
     double svn_up_intvl;
+    char const * svn_repo_path;
 
     size_t http_threads;
     size_t conc_downloads;
@@ -86,7 +89,7 @@ StartDonwloadingRes start_currently_downloading(App* app, char const* pkg);
 void remove_currently_downloading(App* app, AlreadyDownloading* m, int status);
 
 void reload_print_mirrors(App* app);
-char* get_local_path(char const* filename);
+char* get_local_path(App* app, char const* filename);
 int ensure_downloaded(App* app, char const* filename, char const* orig_url);
 
 typedef time_t timestamp;

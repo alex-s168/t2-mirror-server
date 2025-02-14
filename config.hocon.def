@@ -1,5 +1,8 @@
 port = 8070
 
+# where to store all the downloaded files
+files_path = "/var/t2-mirror-server/data"
+
 # the amount of threads in the thread pool for serving http
 http_threads = 4
 
@@ -18,7 +21,9 @@ enable_remoteurl = false
 svn {
     # warning: a update slows down the server a bit
     up_interval_s = 32m
+
+    repo_path = "/var/t2-mirror-server/t2-trunk"
 }
 
-# if you disable svn, put the URL of the T2 mirror here
+# if you disable svn, add: "http://dl.t2sde.org/mirror/trunk"
 backing_mirrors = []

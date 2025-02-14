@@ -6,9 +6,6 @@
 #include <ctype.h>
 #include "app.h"
 
-#define cfg_path "config.hocon"
-#define cfg_def_path "config.hocon.def"
-
 static cJSON* get_expect(cJSON* obj, char const* name) {
     cJSON* out = cJSON_GetObjectItem(obj, name);
     if (out == NULL) {
@@ -54,14 +51,23 @@ static double parse_time(cJSON* obj) {
 
 void AppCfg_parse(AppCfg* cfg)
 {
+    char const * cfg_path = "config.hocon";
+
     if (access(cfg_path, F_OK) != 0) {
-        if (system("cp " cfg_def_path " " cfg_path) != 0) {
-	    ERRF("no config.hocon.def and no config.hocon???");
-	    exit(1);
-	}
-	LOGF("copied config.hocon.def to config.hocon");
+        if (access("config.hocon.def", F_OK) == 0) {
+            assert(system("cp config.hocon config.hocon.def") == 0);
+            LOGF("copied config.hocon.def to config.hocon");
+        }
+        else {
+            cfg_path = "/etc/t2-mirror-server.hocon";
+	    if (access(cfg_path, F_OK) != 0) {
+	        ERRF("could not find suitable config! tried: \"config.hocon\", \"config.hocon.def\", \"%s\"", cfg_path);
+                exit(1);
+	    }
+        }
     }
 
+    LOGF("config path: %s", cfg_path);
     cJSON* j = hocon_parse_file(cfg_path);
     if (!j) {
         ERRF("syntax error in config");
@@ -69,6 +75,9 @@ void AppCfg_parse(AppCfg* cfg)
     }
 
     cfg->port = (uint16_t) cJSON_GetNumberValue(get_expect(j, "port"));
+
+    cfg->files_path = cJSON_GetStringValue(get_expect(j, "files_path"));
+    LOGF("data directory: \"%s\"", cfg->files_path);
 
     cfg->mirrors_recache_intvl = parse_time(get_expect(j, "mirrors_recache_interval_s"));
     LOGF("will re-cache mirrors every %f seconds", cfg->mirrors_recache_intvl);
@@ -95,12 +104,21 @@ void AppCfg_parse(AppCfg* cfg)
     if (svn) {
         cfg->svn = true;
         cfg->svn_up_intvl = parse_time(get_expect(svn, "up_interval_s"));
+	cfg->svn_repo_path = cJSON_GetStringValue(get_expect(svn, "repo_path"));
+
+	LOGF("svn repo path: %s", cfg->svn_repo_path);
         LOGF("will update svn every %f seconds", cfg->svn_up_intvl);
     } else {
         cfg->svn = false;
         cfg->svn_up_intvl = 0;
+	cfg->svn_repo_path = NULL;
     }
 
     cfg->http_threads = (size_t) cJSON_GetNumberValue(get_expect(j, "http_threads"));
     cfg->conc_downloads = (size_t) cJSON_GetNumberValue(get_expect(j, "conc_downloads"));
+
+    if (cfg->http_threads == 0 || cfg->conc_downloads == 0) {
+        ERRF("invalid config (num threads)");
+        exit(1);
+    }
 }

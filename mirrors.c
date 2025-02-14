@@ -134,10 +134,10 @@ static int download(char const* outpath, char const* url)
     return status;
 }
 
-static void ensure_prefix_dir(char prefix)
+static void ensure_prefix_dir(App* app, char prefix)
 {
     char df[7];
-    sprintf(df, "data/%c", prefix);
+    sprintf(df, "%s/%c", app->cfg.files_path, prefix);
     struct stat st = {0};
     if (stat(df, &st) == -1) {
         mkdir(df, 0700);
@@ -145,7 +145,7 @@ static void ensure_prefix_dir(char prefix)
 }
 
 // 0 = ok
-static int mirror_download(char const* filename, char* outpath, Mirror mirror)
+static int mirror_download(App* app, char const* filename, char* outpath, Mirror mirror)
 {
     char* url = malloc(strlen(mirror.url) + 3 + strlen(filename) + 1);
     if (!url) return 1;
@@ -159,7 +159,7 @@ static int mirror_download(char const* filename, char* outpath, Mirror mirror)
     strcat(url, bf);
     strcat(url, filename);
 
-    ensure_prefix_dir(filename[0]);
+    ensure_prefix_dir(app, filename[0]);
 
     int ok = download(outpath, url);
     if (ok != 0) {
@@ -171,12 +171,12 @@ static int mirror_download(char const* filename, char* outpath, Mirror mirror)
     return ok;
 }
 
-char* get_local_path(char const* filename)
+char* get_local_path(App* app, char const* filename)
 {
     char* outpath = malloc(5 + 2 + strlen(filename) + 1);
     if (!outpath)
         return NULL;
-    sprintf(outpath, "data/%c/%s", filename[0], filename);
+    sprintf(outpath, "%s/%c/%s", app->cfg.files_path, filename[0], filename);
     return outpath;
 }
 
@@ -205,7 +205,7 @@ int ensure_downloaded(App* app, char const* filename, char const* orig_url)
 
     sem_wait(&app->download_sem);
 
-    char* outpath = get_local_path(filename);
+    char* outpath = get_local_path(app, filename);
 
     int anyok = 0;
 
@@ -217,7 +217,7 @@ int ensure_downloaded(App* app, char const* filename, char const* orig_url)
         for (size_t i = 0; i < app->mirrors.count; i ++)
         {
             Mirror m = app->mirrors.items[i];
-            int status = mirror_download(filename, outpath, m);
+            int status = mirror_download(app, filename, outpath, m);
             if (status == 0) {
                 LOGF("%s downloaded from %s", filename, m.url);
                 anyok = 1;
@@ -231,7 +231,7 @@ int ensure_downloaded(App* app, char const* filename, char const* orig_url)
 
         if (!anyok && orig_url != NULL)
         {
-            ensure_prefix_dir(filename[0]);
+            ensure_prefix_dir(app, filename[0]);
             int ok = download(outpath, orig_url);
             if (ok != 0) {
                 remove(outpath);

@@ -8,6 +8,7 @@
 #include <dirent.h>
 #include "allib/dynamic_list/dynamic_list.h"
 #include <signal.h>
+#include <sys/stat.h>
 
 static DynamicList TYPES(char) gen_readme(App* app)
 {
@@ -25,9 +26,9 @@ static DynamicList TYPES(char) gen_readme(App* app)
     addstr("\n");
     addstr("cached files:\n");
 
-    DIR* prefixes = opendir("data");
+    DIR* prefixes = opendir(app->cfg.files_path);
     if (prefixes == NULL) {
-        ERRF("can't find data dir? WTF");
+        ERRF("can't open files dir");
         return out;
     }
 
@@ -42,8 +43,8 @@ static DynamicList TYPES(char) gen_readme(App* app)
         if (strlen(ent->d_name) > 1)
             continue;
 
-        char buf[sizeof("data/") + strlen(ent->d_name) + 1];
-        sprintf(buf, "data/%s", ent->d_name);
+        char buf[strlen(app->cfg.files_path) + strlen(ent->d_name) + 1];
+        sprintf(buf, "%s/%s", app->cfg.files_path, ent->d_name);
 
         DIR* inpref = opendir(buf);
         if (!inpref)
@@ -107,7 +108,7 @@ static struct HttpResponse serve(struct HttpRequest request, void* userdata)
 
         int status = ensure_downloaded(app, reqfile, original);
         if (status == 0) {
-            char* path = get_local_path(reqfile);
+            char* path = get_local_path(app, reqfile);
             FILE* f = fopen(path, "rb");
             if (f != NULL) {
                 fseek(f, 0, SEEK_END);
@@ -221,17 +222,25 @@ static void svn_up_index_file(App* app, FILE* fp, DynamicList TYPES(SvnDwPkg) * 
 
 static void svn_up(App* app)
 {
-    int status = system("cd t2-trunk && svn up > /dev/null");
-
-    if ( status == 0 ) {
-        LOGF("svn update [1/2] successfull");
-    } else {
-        ERRF("svn update [1/2] failed");
+    {
+        char cmd[512];
+        sprintf(cmd, "cd \"%s\" && svn up > /dev/null", app->cfg.svn_repo_path);
+        int status = system(cmd);
+        if ( status == 0 ) {
+            LOGF("svn update [1/2] successfull");
+        } else {
+            ERRF("svn update [1/2] failed");
+	    return;
+        }
     }
 
-    DIR* pkcats = opendir("t2-trunk/package/");
+    char packages_dir[512];
+    sprintf(packages_dir, "%s/package/", app->cfg.svn_repo_path);
+
+    DIR* pkcats = opendir(packages_dir);
     if ( !pkcats ) {
         ERRF("svn update [2/2] failed");
+	return;
     }
 
     DynamicList TYPES(SvnDwPkg) li;
@@ -243,10 +252,10 @@ static void svn_up(App* app)
         if (!strcmp(cat->d_name, ".") || !strcmp(cat->d_name, ".."))
             continue;
 
-        char *catpath = malloc(strlen(cat->d_name) + 32);
+        char *catpath = malloc(strlen(packages_dir) + strlen(cat->d_name) + 8);
         if (!catpath)
             continue;
-        sprintf(catpath, "t2-trunk/package/%s/", cat->d_name);
+        sprintf(catpath, "%s/%s/", packages_dir, cat->d_name);
 
         DIR* pkgs = opendir(catpath);
         if ( !pkgs ) {
@@ -305,18 +314,22 @@ static void* svn_up_thread(void* ptr)
     return NULL;
 }
 
+static void ensure_dir(char const * path)
+{
+    struct stat st = {0};
+    if ( stat(path, &st) == 0 )
+        return;
+    mkdir(path, 0755);
+}
+
 int main(int argc, char **argv)
 {
     signal(SIGPIPE, SIG_IGN);
 
     App app = {0};
-
     AppCfg_parse(&app.cfg);
 
-    if (app.cfg.http_threads == 0 || app.cfg.conc_downloads == 0) {
-        ERRF("invalid config (num threads)");
-        return 1;
-    }
+    ensure_dir(app.cfg.files_path);
 
     if (app.cfg.svn) {
         if ( system("svn --version > /dev/null") != 0 ) {
@@ -324,10 +337,19 @@ int main(int argc, char **argv)
             return 1;
         }
 
-        if ( system("cd t2-trunk && svn info > /dev/null") != 0 ) {
-            ERRF("t2-trunk/ is not a valid svn repository");
-            ERRF("consider running: \"svn co https://svn.exactcode.de/t2/trunk t2-trunk\"");
-            return 1;
+	char cmd[512];
+	sprintf(cmd, "mkdir -p \"%s\"", app.cfg.svn_repo_path);
+	(void) system(cmd);
+
+	sprintf(cmd, "cd \"%s\" && svn info > /dev/null", app.cfg.svn_repo_path);
+
+        if ( system(cmd) != 0 ) {
+	    sprintf(cmd, "svn co https://svn.exactcode.de/t2/trunk \"%s\" > /dev/null", app.cfg.svn_repo_path);
+            LOGF("executing: %s", cmd);
+	    if ( system(cmd) != 0 ) {
+	        ERRF("failed to checkout svn repository");
+		return 1;
+	    }
         }
     }
 

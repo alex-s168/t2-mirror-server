@@ -9,10 +9,16 @@ Depends on the following t2 packages:
 - `curl`
 - `hocon`
 
-first, run `build.sh`.
-then modify the `config.hocon` according to your needs,
-and then start the server: `./a.out`.
+## installing (on T2)
+run `./install.sh`.
 
-now you can (on different devices) change the /usr/src/t2-src/download/Mirror-Cache to point to this server instead.
+Now it installed a SysV-init service which can be start/stopped via `rc t2-mirror-server start`.
+The config can be changed in `/etc/t2-mirror-server.hocon`.
+To see the logs, you can `cat /var/logs/init.msg` (which will print the logs of all sysvinit services)
 
-You also should apply the `download.patch` patch, to send this server more information on download. (does not matter if on public mode)
+now you can (on different devices) change the /usr/src/t2-src/download/Mirror-Cache to point to this server instead:
+```
+http://my-server:8070 25-svn
+```
+
+It is recommended to also apply the `download.patch` patch, to send this server more information on download. (does not matter if on public mode)
