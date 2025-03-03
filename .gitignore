@@ -1,3 +1,5 @@
+hocon/
+.temp.c
 config.hocon
 t2-trunk
 *.o

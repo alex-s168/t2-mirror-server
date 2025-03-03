@@ -12,9 +12,32 @@ Depends on the following t2 packages:
 ## installing on T2
 `t2 install t2-mirror-server`
 
+If you want to install from source, just execute `./install.sh`
+
 Now it installed a SysV-init service which can be start/stopped via `rc t2-mirror-server start`.
-The config can be changed in `/etc/t2-mirror-server.hocon`.
 To see the logs, you can `cat /var/logs/init.msg` (which will print the logs of all sysvinit services)
+
+## installing on systemd-based systems
+You can also install and run t2-mirror-server on systemd-based systems.
+
+First, run `./install.sh`, which will copy all relevant files.
+
+After installation, you can start/stop the service using:
+```
+systemctl start t2-mirror-server
+systemctl stop t2-mirror-server
+```
+To enable the service to start automatically at boot:
+```
+systemctl enable t2-mirror-server
+```
+Logs can be viewed with:
+```
+journalctl -u t2-mirror-server
+```
+
+## Usage
+The config can be changed in `/etc/t2-mirror-server.hocon`.
 
 now you can (on different devices) change the /usr/src/t2-src/download/Mirror-Cache to point to this server instead:
 ```
