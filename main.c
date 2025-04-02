@@ -73,6 +73,21 @@ static DynamicList TYPES(char) gen_readme(App* app)
     return out;
 }
 
+HttpIterRes downtest_next(void* userptr) {
+    static char X100[65] = "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\n";
+    size_t rem = (size_t)(intptr_t)userptr;
+    HttpIterRes res;
+    res.free_ptr = false;
+    res.len = 0;
+    res.new_userptr = userptr;
+    if (rem) {
+        res.new_userptr = (void*)(intptr_t)(rem - 1);
+        res.len = 64;
+        res.ptr = X100;
+    }
+    return res;
+}
+
 static struct HttpResponse serve(struct HttpRequest request, void* userdata)
 {
     // TODO: protect against spamming (make configurable)
@@ -92,6 +107,20 @@ static struct HttpResponse serve(struct HttpRequest request, void* userdata)
             .content_val.bytes = (HttpBytesContent) {
                 .content = out.fixed.data,
                 .free_after = true,
+            }
+        };
+    }
+
+    if (!strcmp(request.path, "/DOWNTEST")) {
+        return (struct HttpResponse) {
+            .status = 200,
+            .status_msg = "OK",
+            .content_type = "text/plain",
+            .content_size = 16384*64,
+            .content_mode = HTTP_CONTENT_ITER,
+            .content_val.iter = (HttpIterContent) {
+                .userptr = (void*)(intptr_t)(16384),
+                .next = downtest_next,
             }
         };
     }
