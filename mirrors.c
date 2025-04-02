@@ -173,7 +173,7 @@ static int mirror_download(App* app, char const* filename, char* outpath, Mirror
 
 char* get_local_path(App* app, char const* filename)
 {
-    char* outpath = malloc(strlen(app->cfg.files_path) + 2 + strlen(filename) + 1);
+    char* outpath = malloc(strlen(app->cfg.files_path) + 3 + strlen(filename) + 1);
     if (!outpath)
         return NULL;
     sprintf(outpath, "%s/%c/%s", app->cfg.files_path, filename[0], filename);
