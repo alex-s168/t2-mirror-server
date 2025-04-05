@@ -9,6 +9,18 @@
 #define DEF_LOG
 #include "C-Http-Server/inc/httpserv.h"
 #include "allib/dynamic_list/dynamic_list.h"
+#include "tpre/tpre.h"
+
+typedef struct {
+    // if str is NULL, insert capture group instead
+    char const* str;
+    size_t strln;
+} StaticEntRepl;
+
+typedef struct {
+    tpre_re_t match;
+    DynamicList TYPES(StaticEntRepl) replace;
+} StaticEnt;
 
 typedef struct {
     uint16_t port;
@@ -28,6 +40,9 @@ typedef struct {
 
     size_t http_threads;
     size_t conc_downloads;
+
+    StaticEnt * static_routes;
+    size_t      static_routes_len;
 } AppCfg;
 
 void AppCfg_parse(AppCfg* cfg);
@@ -84,6 +99,10 @@ typedef struct {
     bool is_already_doing;
     int already_doing_res_status;
 } StartDonwloadingRes;
+
+DynamicList TYPES(char) repl_static_host_path(StaticEnt const* ent, char const* match_str, tpre_match_t const* match);
+/** 0 = ok */
+int repl_static_host(DynamicList TYPES(char) * out, StaticEnt const* ent, char const* match_str);
 
 StartDonwloadingRes start_currently_downloading(App* app, char const* pkg);
 void remove_currently_downloading(App* app, AlreadyDownloading* m, int status);

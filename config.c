@@ -4,7 +4,9 @@
 #include <hocon.h>
 #include <assert.h>
 #include <ctype.h>
+#include <string.h>
 #include "app.h"
+#include "tpre/tpre.h"
 
 static cJSON* get_expect(cJSON* obj, char const* name) {
     cJSON* out = cJSON_GetObjectItem(obj, name);
@@ -120,5 +122,64 @@ void AppCfg_parse(AppCfg* cfg)
     if (cfg->http_threads == 0 || cfg->conc_downloads == 0) {
         ERRF("invalid config (num threads)");
         exit(1);
+    }
+
+    {
+        cJSON* stat = get_expect(j, "static");
+        size_t stat_len = cJSON_GetArraySize(stat);
+        cfg->static_routes_len = stat_len;
+        cfg->static_routes = malloc(sizeof(StaticEnt) * stat_len);
+        for (size_t i = 0; i < stat_len; i ++) {
+            cJSON* ent = cJSON_GetArrayItem(stat, i);
+            char const* matchstr = cJSON_GetStringValue(cJSON_GetArrayItem(ent, 0));
+            char const* replace = cJSON_GetStringValue(cJSON_GetArrayItem(ent, 1));
+            assert(matchstr);
+            assert(replace);
+
+            StaticEnt* se = &cfg->static_routes[i];
+
+            tpre_errs_t errs = {0};
+            if (tpre_compile(&se->match, matchstr, &errs)) {
+                ERRF("=== regex pattern compile failure for: %s\n", matchstr);
+                for (size_t i = 0; i < errs.len; i ++) {
+                    tpre_err_t e = errs.items[i];
+                    ERRF("at %zu: %s\n", e.pat_byte_loc, e.message);
+                }
+                ERRF("===\n");
+                exit(1);
+            }
+
+            DynamicList_init(&se->replace, sizeof(StaticEntRepl), getLIBCAlloc(), 0);
+
+            size_t num_pla = 0;
+            do {
+                char const* pla = strchr(replace, '$');
+                size_t len = pla ? (pla - replace) : strlen(replace);
+
+                if (len > 0) {
+                    *(StaticEntRepl*)DynamicList_addp(&se->replace) = (StaticEntRepl) {
+                        .str = replace,
+                        .strln = len,
+                    };
+                }
+
+                if (pla) {
+                    *(StaticEntRepl*)DynamicList_addp(&se->replace) = (StaticEntRepl) {
+                        .str = NULL,
+                        .strln = 0,
+                    };
+                    num_pla ++;
+
+                    replace = pla + 1;
+                } else {
+                    replace = replace + len;
+                }
+            } while (replace);
+
+            if (num_pla > se->match.max_group) {
+                ERRF("more placeholdrs used than capture groups available (in path for static route) %s", matchstr);
+                exit(1);
+            }
+        }
     }
 }

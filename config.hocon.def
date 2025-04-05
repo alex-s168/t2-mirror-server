@@ -27,3 +27,13 @@ svn {
 
 # if you disable svn, add: "http://dl.t2sde.org/mirror/trunk"
 backing_mirrors = []
+
+static = [
+    # [regex-expression, path-pattern]
+    ["/robots\\.txt", "/var/t2-mirror-server/static/robots.txt"],
+
+    # dollar signs in the path get replaced with the corresponding capture group
+    ["/mydir/([a-zA-Z_]*?)", "/my/path/dir/$"],
+
+    ["/other/([a-z]*?)/([a-z]*?)", "/my/path/$/a/$"],
+]

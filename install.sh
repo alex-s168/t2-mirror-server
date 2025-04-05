@@ -73,7 +73,7 @@ cd allib
 cc build.c -DCC="\"cc\"" -o build.exe
 ./build.exe all.a
 cd ..
-cc -o a.out *.c C-Http-Server/src/*.c C-Http-Server/thread-pool/*.c allib/build/all.a -lcurl -lcjson -DHAS_ZLIB -DHAS_ZSTD -lz -lzstd $hocon_args
+cc -o a.out *.c C-Http-Server/src/*.c C-Http-Server/thread-pool/*.c allib/build/all.a tpre/tpre.c -lcurl -lcjson -DHAS_ZLIB -DHAS_ZSTD -lz -lzstd $hocon_args
 
 mv a.out /usr/bin/t2-mirror-server
 if [ -f /etc/t2-mirror-server.hocon ]; then

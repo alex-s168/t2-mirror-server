@@ -1,3 +1,4 @@
+#include "allib/fixed_list/fixed_list.h"
 #include "allib/kallok/kallok.h"
 #include <ctype.h>
 #include <pthread.h>
@@ -7,8 +8,37 @@
 #include <time.h>
 #include <dirent.h>
 #include "allib/dynamic_list/dynamic_list.h"
+#include "tpre/tpre.h"
 #include <signal.h>
 #include <sys/stat.h>
+
+DynamicList TYPES(char) repl_static_host_path(StaticEnt const* ent, char const* match_str, tpre_match_t const* match)
+{
+    DynamicList TYPES(char) out;
+    DynamicList_init(&out, sizeof(char), getLIBCAlloc(), 0);
+    size_t groupid = 1;
+    for (size_t i = 0; i < ent->replace.fixed.len; i ++) {
+        StaticEntRepl repl = *(StaticEntRepl*)FixedList_get(ent->replace.fixed, i);
+        if (repl.str) {
+            DynamicList_addAll(&out, repl.str, repl.strln, sizeof(char));
+        } else {
+            tpre_group_t g = match->groups[groupid ++];
+            DynamicList_addAll(&out, match_str + g.begin, g.len, sizeof(char));
+        }
+    }
+    return out;
+}
+
+/** 0 = ok */
+int repl_static_host(DynamicList TYPES(char) * out, StaticEnt const* ent, char const* match_str)
+{
+    tpre_match_t m = tpre_match(&ent->match, match_str);
+    if (!m.found)
+        return 1;
+    *out = repl_static_host_path(ent, match_str, &m);
+    tpre_match_free(m);
+    return 0;
+}
 
 static DynamicList TYPES(char) gen_readme(App* app)
 {
@@ -164,6 +194,46 @@ static struct HttpResponse serve(struct HttpRequest request, void* userdata)
         }
         else {
             LOGF("can't source %s", reqfile);
+        }
+    }
+
+    for (size_t i = 0; i < app->cfg.static_routes_len; i ++) {
+        StaticEnt* ent = &app->cfg.static_routes[i];
+
+        DynamicList TYPES(char) static_host_p;
+        if (!repl_static_host(&static_host_p, ent, request.path)) {
+            assert(static_host_p.fixed.elSize == sizeof(char));
+            assert(static_host_p.fixed.stride == sizeof(char));
+            *(char*)DynamicList_addp(&static_host_p) = '\0';
+            char const* path = static_host_p.fixed.data;
+
+            FILE* f = fopen(path, "rb");
+            if (f != NULL) {
+                fseek(f, 0, SEEK_END);
+                size_t len = ftell(f);
+                rewind(f);
+                char* data = malloc(len);
+                if (data) {
+                    LOGF("served static %s", path);
+                    char const* mime = http_detectMime(path);
+                    DynamicList_clear(&static_host_p);
+                    return (struct HttpResponse) {
+                        .status = 200,
+                        .status_msg = "OK",
+                        .content_type = mime,
+                        .content_size = len,
+                        .content_mode = HTTP_CONTENT_FILE,
+                        .content_val.file = (HttpFileContent) {
+                            .fp = f,
+                            .close_after = true,
+                        }
+                    };
+                } else {
+                    WARNF("could not find static %s", path);
+                    fclose(f);
+                    DynamicList_clear(&static_host_p);
+                }
+            }
         }
     }
 
