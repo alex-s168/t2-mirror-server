@@ -67,13 +67,16 @@ if ! [ $(has_include "hocon.h") = 1 ]; then
 	cd ..
 fi
 
-echo $hocon_args
+args=$hocon_args
+if [ $(has_include "zstd.h") = 1 ]; then
+	args+=" -DHAS_ZSTD -lzstd"
+fi
 
 cd allib
-cc build.c -DCC="\"cc\"" -o build.exe
+cc build.c -DCC="\"cc\"" $(build_c/slowdb/build.sh) -o build.exe
 ./build.exe all.a
 cd ..
-cc -o a.out *.c C-Http-Server/src/*.c C-Http-Server/thread-pool/*.c allib/build/all.a -lcurl -lcjson -DHAS_ZLIB -DHAS_ZSTD -lz -lzstd $hocon_args
+cc -o a.out *.c C-Http-Server/src/*.c C-Http-Server/thread-pool/*.c allib/build/all.a -lcurl -lcjson -DHAS_ZLIB -lz $args
 
 mv a.out /usr/bin/t2-mirror-server
 if [ -f /etc/t2-mirror-server.hocon ]; then
