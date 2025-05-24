@@ -172,59 +172,57 @@ static struct HttpResponse serve(struct HttpRequest request, void* userdata)
         if (status == 0) {
             char* path = get_local_path(app, reqfile);
             FILE* f = fopen(path, "rb");
+            free(path);
             if (f != NULL) {
                 fseek(f, 0, SEEK_END);
                 size_t len = ftell(f);
                 rewind(f);
-                char* data = malloc(len);
-                if (data) {
-                    LOGF("serving %s", reqfile);
-                    if ( app->per_packet_db )
-                    {
-                        pthread_mutex_lock(&app->per_packet_db_lock);
-                        pkgdbinfo val = {0};
-                        int actual_vallen = -1;
-                        unsigned char* valptr = slowdb_get(app->per_packet_db,
-                                (unsigned char*) reqfile, strlen(reqfile),
-                                &actual_vallen);
-                        pthread_mutex_unlock(&app->per_packet_db_lock);
+                LOGF("serving %s", reqfile);
+                if ( app->per_packet_db )
+                {
+                    pthread_mutex_lock(&app->per_packet_db_lock);
+                    pkgdbinfo val = {0};
+                    int actual_vallen = -1;
+                    unsigned char* valptr = slowdb_get(app->per_packet_db,
+                            (unsigned char*) reqfile, strlen(reqfile),
+                            &actual_vallen);
+                    pthread_mutex_unlock(&app->per_packet_db_lock);
 
-                        if (valptr) {
-                            if (actual_vallen > sizeof(val)) {
-                                ERRF("statsdb stored invalid value for \"%s\". actual len was %i", reqfile, actual_vallen);
-                            } else {
-                                memcpy((unsigned char*) &val, valptr, actual_vallen);
-                            }
-                            free(valptr);
+                    if (valptr) {
+                        if (actual_vallen > sizeof(val)) {
+                            ERRF("statsdb stored invalid value for \"%s\". actual len was %i", reqfile, actual_vallen);
                         } else {
-                            LOGF("first time insert into statsdb for \"%s\"", reqfile);
+                            memcpy((unsigned char*) &val, valptr, actual_vallen);
                         }
-                        val.pkgdbinfo_v1.num_downloads += 1;
-
-                        pthread_mutex_lock(&app->per_packet_db_lock);
-                        int status = slowdb_replaceOrPut(app->per_packet_db,
-                                (unsigned char*) reqfile, strlen(reqfile),
-                                (unsigned char*) &val, sizeof(val));
-                        pthread_mutex_unlock(&app->per_packet_db_lock);
-                        if (status != 0) {
-                            ERRF("statsdb replaceOrPut failed");
-                        }
+                        free(valptr);
+                    } else {
+                        LOGF("first time insert into statsdb for \"%s\"", reqfile);
                     }
+                    val.pkgdbinfo_v1.num_downloads += 1;
 
-                    return (struct HttpResponse) {
-                        .status = 200,
-                        .status_msg = "OK",
-                        .content_type = http_detectMime(reqfile),
-                        .content_size = len,
-                        .content_mode = HTTP_CONTENT_FILE,
-                        .content_val.file = (HttpFileContent) {
-                            .fp = f,
-                            .close_after = true,
-                        }
-                    };
-                } else {
-                    fclose(f);
+                    pthread_mutex_lock(&app->per_packet_db_lock);
+                    int status = slowdb_replaceOrPut(app->per_packet_db,
+                            (unsigned char*) reqfile, strlen(reqfile),
+                            (unsigned char*) &val, sizeof(val));
+                    pthread_mutex_unlock(&app->per_packet_db_lock);
+                    if (status != 0) {
+                        ERRF("statsdb replaceOrPut failed");
+                    }
                 }
+
+                return (struct HttpResponse) {
+                    .status = 200,
+                    .status_msg = "OK",
+                    .content_type = http_detectMime(reqfile),
+                    .content_size = len,
+                    .content_mode = HTTP_CONTENT_FILE,
+                    .content_val.file = (HttpFileContent) {
+                        .fp = f,
+                        .close_after = true,
+                    }
+                };
+            } else {
+                fclose(f);
             }
         }
         else {
