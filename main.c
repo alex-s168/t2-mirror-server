@@ -7,8 +7,15 @@
 #include <time.h>
 #include <dirent.h>
 #include "allib/dynamic_list/dynamic_list.h"
+#include "slowdb/inc/slowdb.h"
 #include <signal.h>
 #include <sys/stat.h>
+
+typedef struct {
+    struct {
+        uint32_t num_downloads;
+    } PACKED pkgdbinfo_v1;
+} PACKED pkgdbinfo;
 
 static DynamicList TYPES(char) gen_readme(App* app)
 {
@@ -24,51 +31,62 @@ static DynamicList TYPES(char) gen_readme(App* app)
         addstr("warning: enable_remoteurl is enabled, which means that anyone with access to this server can cache files with fake URLs!\n");
     }
     addstr("\n");
-    addstr("cached files:\n");
-
-    DIR* prefixes = opendir(app->cfg.files_path);
-    if (prefixes == NULL) {
-        ERRF("can't open files dir");
-        return out;
-    }
-
-    struct dirent* ent;
-    while ((ent = readdir(prefixes)) != NULL)
-    {
-        if (!strcmp(ent->d_name, "."))
-            continue;
-        if (!strcmp(ent->d_name, ".."))
-            continue;
-
-        if (strlen(ent->d_name) > 1)
-            continue;
-
-        char buf[strlen(app->cfg.files_path) + strlen(ent->d_name) + 1];
-        sprintf(buf, "%s/%s", app->cfg.files_path, ent->d_name);
-
-        DIR* inpref = opendir(buf);
-        if (!inpref)
-            continue;
-
-        struct dirent* pkg;
-        while ((pkg = readdir(inpref)) != NULL)
-        {
-            if (!strcmp(pkg->d_name, "."))
-                continue;
-            if (!strcmp(pkg->d_name, ".."))
-                continue;
-
-            addstr("* ");
-            addstr(pkg->d_name);
-            addstr("\n");
-        }
-
-        closedir(inpref);
-    }
-
-    closedir(prefixes);
+    addstr("you can see all the cached files and statistics in /stats.csv\n");
+    addstr("note that that might not contain all packages, since statistic tracking is new\n");
 
 #undef addstr
+
+    return out;
+}
+
+static DynamicList TYPES(char) gen_stats(App* app)
+{
+    DynamicList TYPES(char) out;
+    DynamicList_init(&out, sizeof(char), getLIBCAlloc(), 0);
+
+    if (!app->per_packet_db)
+        return out;
+
+    pthread_mutex_lock(&app->per_packet_db_lock);
+
+#define addstr(s) \
+    DynamicList_addAll(&out, s, strlen(s), sizeof(char));
+
+    addstr("file_name,num_downloads\n");
+    addstr(",\n");
+
+    slowdb_iter* iter = slowdb_iter_new(app->per_packet_db);
+    while ( slowdb_iter_next(iter) )
+    {
+        int keylen;
+        char* key = (char*) slowdb_iter_get_key(iter, &keylen);
+        if (key && keylen < 1000) {
+            DynamicList_addAll(&out, key, keylen, sizeof(char));
+        } else {
+            WARNF("slowdb iter get key failed");
+        }
+        free(key);
+
+        int vallen;
+        char* val = (char*) slowdb_iter_get_val(iter, &vallen);
+        if (key && vallen <= sizeof(pkgdbinfo)) {
+            pkgdbinfo info = {0};
+            memcpy(&info, val, vallen);
+
+            char buf[64];
+            sprintf(buf, ",%u\n", info.pkgdbinfo_v1.num_downloads);
+            addstr(buf);
+        } else {
+            WARNF("slowdb iter get val failed");
+        }
+
+        free(val);
+    }
+    slowdb_iter_delete(iter);
+
+#undef addstr
+
+    pthread_mutex_unlock(&app->per_packet_db_lock);
 
     return out;
 }
@@ -95,8 +113,23 @@ static struct HttpResponse serve(struct HttpRequest request, void* userdata)
     App* app = userdata;
 
     if (!strcmp(request.path, "/")) {
-        // TODO: cache this
         DynamicList TYPES(char) out = gen_readme(app);
+
+        return (struct HttpResponse) {
+            .status = 200,
+            .status_msg = "OK",
+            .content_type = "text/plain",
+            .content_size = out.fixed.len,
+            .content_mode = HTTP_CONTENT_BYTES,
+            .content_val.bytes = (HttpBytesContent) {
+                .content = out.fixed.data,
+                .free_after = true,
+            }
+        };
+    }
+
+    if (!strcmp(request.path, "/stats.csv")) {
+        DynamicList TYPES(char) out = gen_stats(app);
 
         return (struct HttpResponse) {
             .status = 200,
@@ -145,7 +178,39 @@ static struct HttpResponse serve(struct HttpRequest request, void* userdata)
                 rewind(f);
                 char* data = malloc(len);
                 if (data) {
-                    LOGF("served %s", reqfile);
+                    LOGF("serving %s", reqfile);
+                    if ( app->per_packet_db )
+                    {
+                        pthread_mutex_lock(&app->per_packet_db_lock);
+                        pkgdbinfo val = {0};
+                        int actual_vallen = -1;
+                        unsigned char* valptr = slowdb_get(app->per_packet_db,
+                                (unsigned char*) reqfile, strlen(reqfile),
+                                &actual_vallen);
+                        pthread_mutex_unlock(&app->per_packet_db_lock);
+
+                        if (valptr) {
+                            if (actual_vallen > sizeof(val)) {
+                                ERRF("statsdb stored invalid value for \"%s\". actual len was %i", reqfile, actual_vallen);
+                            } else {
+                                memcpy((unsigned char*) &val, valptr, actual_vallen);
+                            }
+                            free(valptr);
+                        } else {
+                            LOGF("first time insert into statsdb for \"%s\"", reqfile);
+                        }
+                        val.pkgdbinfo_v1.num_downloads += 1;
+
+                        pthread_mutex_lock(&app->per_packet_db_lock);
+                        int status = slowdb_replaceOrPut(app->per_packet_db,
+                                (unsigned char*) reqfile, strlen(reqfile),
+                                (unsigned char*) &val, sizeof(val));
+                        pthread_mutex_unlock(&app->per_packet_db_lock);
+                        if (status != 0) {
+                            ERRF("statsdb replaceOrPut failed");
+                        }
+                    }
+
                     return (struct HttpResponse) {
                         .status = 200,
                         .status_msg = "OK",
@@ -360,25 +425,43 @@ int main(int argc, char **argv)
 
     ensure_dir(app.cfg.files_path);
 
+    if (app.cfg.enable_package_stats) {
+        slowdb_open_opts opts;
+        slowdb_open_opts_default(&opts);
+        opts.index_num_buckets = 256;
+
+        char* db_path = malloc(strlen(app.cfg.files_path) + 128);
+        sprintf(db_path, "%s/packages.db", app.cfg.files_path);
+
+        // not explicitly closing the db isn't thaaat much of a problem
+        if (!( app.per_packet_db = slowdb_openx(db_path, &opts) ))
+        {
+            ERRF("could not open/create package stats DB");
+            return 1;
+        }
+
+        pthread_mutex_init(&app.per_packet_db_lock, 0);
+    }
+
     if (app.cfg.svn) {
         if ( system("svn --version > /dev/null") != 0 ) {
             ERRF("could not find svn in PATH");
             return 1;
         }
 
-	char cmd[512];
-	sprintf(cmd, "mkdir -p \"%s\"", app.cfg.svn_repo_path);
-	(void) system(cmd);
+        char cmd[512];
+        sprintf(cmd, "mkdir -p \"%s\"", app.cfg.svn_repo_path);
+        (void) system(cmd);
 
-	sprintf(cmd, "cd \"%s\" && svn info > /dev/null", app.cfg.svn_repo_path);
+        sprintf(cmd, "cd \"%s\" && svn info > /dev/null", app.cfg.svn_repo_path);
 
         if ( system(cmd) != 0 ) {
-	    sprintf(cmd, "svn co https://svn.exactcode.de/t2/trunk \"%s\" > /dev/null", app.cfg.svn_repo_path);
+            sprintf(cmd, "svn co https://svn.exactcode.de/t2/trunk \"%s\" > /dev/null", app.cfg.svn_repo_path);
             LOGF("executing: %s", cmd);
-	    if ( system(cmd) != 0 ) {
-	        ERRF("failed to checkout svn repository");
-		return 1;
-	    }
+            if ( system(cmd) != 0 ) {
+                ERRF("failed to checkout svn repository");
+                return 1;
+            }
         }
     }
 

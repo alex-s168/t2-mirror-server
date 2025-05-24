@@ -9,6 +9,7 @@
 #define DEF_LOG
 #include "C-Http-Server/inc/httpserv.h"
 #include "allib/dynamic_list/dynamic_list.h"
+#include "slowdb/inc/slowdb.h"
 
 typedef struct {
     uint16_t port;
@@ -28,6 +29,8 @@ typedef struct {
 
     size_t http_threads;
     size_t conc_downloads;
+
+    bool enable_package_stats;
 } AppCfg;
 
 void AppCfg_parse(AppCfg* cfg);
@@ -76,6 +79,9 @@ typedef struct {
     DynamicList TYPES(AlreadyDownloading*) currently_downloading;
 
     sem_t download_sem;
+
+    slowdb* per_packet_db;
+    pthread_mutex_t per_packet_db_lock;
 } App;
 
 typedef struct {

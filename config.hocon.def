@@ -27,3 +27,7 @@ svn {
 
 # if you disable svn, add: "http://dl.t2sde.org/mirror/trunk"
 backing_mirrors = []
+
+# this adds some extra (minimal) overhead to requests, and also requires more storage
+# currently only tracks number of downloads
+enable_package_stats = true

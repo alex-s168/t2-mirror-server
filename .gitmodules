@@ -4,3 +4,6 @@
 [submodule "allib"]
 	path = allib
 	url = https://github.com/alex-s168/allib.git
+[submodule "slowdb"]
+	path = slowdb
+	url = https://github.com/alex-s168/slowdb.git

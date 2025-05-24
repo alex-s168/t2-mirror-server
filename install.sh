@@ -1,5 +1,15 @@
 set -e
 
+if ! [ -d allib ]; then
+    echo "please checkout the allib submodule (recursively)"
+    exit 1
+fi
+
+if ! [ -d slowdb ]; then
+    echo "please checkout the slowdb submodule"
+    exit 1
+fi
+
 has_include () {
 	echo "#include \"$1\"" > .temp.c
 	echo "int main() {return 0;}" >> .temp.c
@@ -76,7 +86,7 @@ cd allib
 cc build.c -DCC="\"cc\"" $(build_c/slowdb/build.sh) -o build.exe
 ./build.exe all.a
 cd ..
-cc -o a.out *.c C-Http-Server/src/*.c C-Http-Server/thread-pool/*.c allib/build/all.a -lcurl -lcjson -DHAS_ZLIB -lz $args
+cc -o a.out *.c C-Http-Server/src/*.c C-Http-Server/thread-pool/*.c allib/build/all.a $(CC=cc slowdb/build.sh) -lcurl -lcjson -DHAS_ZLIB -lz $args
 
 mv a.out /usr/bin/t2-mirror-server
 if [ -f /etc/t2-mirror-server.hocon ]; then
@@ -90,5 +100,7 @@ if [ -d /etc/rc.d/init.d ]; then
 fi
 
 if [ -d /etc/systemd/system ]; then
-	cp t2-mirror-server.service /etc/systemd/system
+    if ! [ -f /etc/systemd/system/t2-mirror-server.service ]; then
+        cp t2-mirror-server.service /etc/systemd/system
+    fi
 fi

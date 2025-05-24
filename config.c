@@ -49,6 +49,11 @@ static double parse_time(cJSON* obj) {
     return num * mult;
 }
 
+static bool expect_bool(cJSON* j) {
+    assert(cJSON_IsBool(j));
+    return cJSON_IsTrue(j);
+}
+
 void AppCfg_parse(AppCfg* cfg)
 {
     char const * cfg_path = "config.hocon";
@@ -96,9 +101,7 @@ void AppCfg_parse(AppCfg* cfg)
 	}
     }
 
-    cJSON* enable_remoteurl = get_expect(j, "enable_remoteurl");
-    assert(cJSON_IsBool(enable_remoteurl));
-    cfg->enable_remoteurl = cJSON_IsTrue(enable_remoteurl);
+    cfg->enable_remoteurl = expect_bool(get_expect(j, "enable_remoteurl"));
 
     cJSON* svn = cJSON_GetObjectItem(j, "svn");
     if (svn) {
@@ -121,4 +124,6 @@ void AppCfg_parse(AppCfg* cfg)
         ERRF("invalid config (num threads)");
         exit(1);
     }
+
+    cfg->enable_package_stats = expect_bool(get_expect(j, "enable_package_stats"));
 }
