@@ -1,3 +1,4 @@
+#include "allib/fixed_list/fixed_list.h"
 #include "app.h"
 #include <curl/curl.h>
 #include <curl/easy.h>
@@ -17,8 +18,8 @@ static size_t discard_data(void *ptr, size_t size, size_t nmemb, void *userdata)
     return size * nmemb;
 }
 
-// TODO: retry multiple times and average
-// 0 means error
+// TODO: instead measure bandwidth of donwload DOWNTEST
+/// 0 means error
 static double measure_ping(const char * url)
 {
     CURL *curl;
@@ -45,28 +46,6 @@ static double measure_ping(const char * url)
     return total_time;
 }
 
-void free_mirrors(Mirrors m)
-{
-    free(m.items);
-}
-
-Mirrors get_mirrors(AppCfg const* cfg)
-{
-    Mirrors m;
-    m.count = cfg->upstream_mirrors_len;
-    m.items = malloc(sizeof(Mirror) * m.count);
-
-    for (size_t i = 0; i < cfg->upstream_mirrors_len; i ++)
-    {
-        m.items[i] = (Mirror) {
-            .url = cfg->upstream_mirrors[i],
-            .delay = measure_ping(cfg->upstream_mirrors[i]),
-        };
-    }
-
-    return m;
-}
-
 static int mirror_cmp(void const* aa, void const* bb)
 {
     Mirror const* a = aa;
@@ -82,7 +61,7 @@ static int mirror_cmp(void const* aa, void const* bb)
 void reload_print_mirrors(App* app)
 {
     pthread_rwlock_wrlock(&app->mirrors_lock);
-
+/*
     free_mirrors(app->mirrors);
     app->mirrors = get_mirrors(&app->cfg);
 
@@ -101,7 +80,7 @@ void reload_print_mirrors(App* app)
         Mirror m = app->mirrors.items[i];
         LOGF("  %s\t%f ms", m.url, m.delay * 1000);
     }
-
+*/
     pthread_rwlock_unlock(&app->mirrors_lock);
 }
 
@@ -110,7 +89,7 @@ size_t download_write(void *ptr, size_t size, size_t nmemb, FILE *stream) {
 }
 
 // 0 = ok
-static int download(App* app, char const* outpath, char const* url)
+static int download(App* app, char const* outpath, char const* url, size_t timeout_ms)
 {
     LOGF("trying %s", url);
 
@@ -122,7 +101,7 @@ static int download(App* app, char const* outpath, char const* url)
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, download_write);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, file);
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1);
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, app->cfg.download_timeout_ms);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, timeout_ms);
     int status = curl_easy_perform(curl) != CURLE_OK;
     if (status == 0) {
         CURLcode code;
@@ -147,7 +126,7 @@ static void ensure_prefix_dir(App* app, char prefix)
 }
 
 // 0 = ok
-static int mirror_download(App* app, char const* filename, char* outpath, Mirror mirror)
+static int mirror_download(App* app, char const* filename, char const* outpath, Mirror mirror, size_t timeout_ms)
 {
     char* url = malloc(strlen(mirror.url) + 3 + strlen(filename) + 1);
     if (!url) return 1;
@@ -163,7 +142,7 @@ static int mirror_download(App* app, char const* filename, char* outpath, Mirror
 
     ensure_prefix_dir(app, filename[0]);
 
-    int ok = download(app, outpath, url);
+    int ok = download(app, outpath, url, timeout_ms);
     if (ok != 0) {
         remove(outpath);
     }
@@ -171,6 +150,25 @@ static int mirror_download(App* app, char const* filename, char* outpath, Mirror
     free(url);
 
     return ok;
+}
+
+// 0 = ok
+static int mirrorgroup_download(App* app, char const* filename, char const* outpath, char const* orig_url, MirrorsBundle const* mirrors)
+{
+    if (mirrors->is_original) {
+        ensure_prefix_dir(app, filename[0]);
+        return download(app, outpath, orig_url, mirrors->donwload_timeout_ms);
+    }
+
+    for (size_t i = 0; i < mirrors->items.fixed.len; i ++)
+    {
+        Mirror m = *(Mirror*)FixedList_get(mirrors->items.fixed, i);
+        if ( 0 == mirror_download(app, filename, outpath, m, mirrors->donwload_timeout_ms) ) {
+            return 0;
+        }
+    }
+
+    return 1;
 }
 
 char* get_local_path(App* app, char const* filename)
@@ -216,33 +214,21 @@ int ensure_downloaded(App* app, char const* filename, char const* orig_url)
 
         pthread_rwlock_rdlock(&app->mirrors_lock);
         
-        for (size_t i = 0; i < app->mirrors.count; i ++)
+        for (size_t i = 0; i < app->mirrors.bundles.fixed.len; i ++)
         {
-            Mirror m = app->mirrors.items[i];
-            int status = mirror_download(app, filename, outpath, m);
+            MirrorsBundle const* bundle =
+                (MirrorsBundle const *) FixedList_get(app->mirrors.bundles.fixed, i);
+            int status = mirrorgroup_download(app, filename, outpath, orig_url, bundle);
             if (status == 0) {
-                LOGF("%s downloaded from %s", filename, m.url);
+                LOGF("%s downloaded from download group %zu", filename, i);
                 anyok = 1;
                 break;
             } else {
-                LOGF("could NOT download %s from %s", filename, m.url);
+                LOGF("could NOT download %s from group %zu", filename, i);
             }
         }
 
         pthread_rwlock_unlock(&app->mirrors_lock);
-
-        if (!anyok && orig_url != NULL)
-        {
-            ensure_prefix_dir(app, filename[0]);
-            int ok = download(app, outpath, orig_url);
-            if (ok != 0) {
-                remove(outpath);
-                LOGF("could NOT download %s from original url %s", filename, orig_url);
-            } else {
-                LOGF("downloaded %s from original url %s", filename, orig_url);
-                anyok = 1;
-            }
-        }
     }
     else {
         anyok = 1;

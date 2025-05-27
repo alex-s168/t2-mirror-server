@@ -1,0 +1,3 @@
+- static file hosting using tpre paths  (for robots.txt for example)
+- cache that files are not accessible from original host
+- bind IP:port instead of just port

@@ -7,7 +7,7 @@
 #     2D
 #     9W
 
-port = 8070
+bind = "0.0.0.0:8070"
 
 # where to store all the downloaded files
 files_path = "/var/t2-mirror-server/data"
@@ -18,14 +18,9 @@ http_threads = 4
 # how many concurrent downloads allowed
 conc_downloads = 4
 
-mirrors_recache_interval_s = 16m
-
-# timeout for download of a package
-download_timeout = 6s
-
-# allow cache download requests to make this server download a file
-# should be disabled if this server is publicly accessible!
-enable_remoteurl = false
+# this adds some extra (minimal) overhead to requests, and also requires more storage
+# currently only tracks number of downloads
+enable_package_stats = true
 
 # clone the T2 source, to get this to know official downlaod name - url pairs 
 svn {
@@ -35,9 +30,24 @@ svn {
     repo_path = "/var/t2-mirror-server/t2-trunk"
 }
 
-# you can add other mirros like "https://dl.t2sde.org/mirror/trunk", which are used if the original URL is incasseible.
-backing_mirrors = []
+download {
+    # see [try_order]
+    reping_interval = 16m
 
-# this adds some extra (minimal) overhead to requests, and also requires more storage
-# currently only tracks number of downloads
-enable_package_stats = true
+    try_order [
+        # first, tries the original source
+        {
+            timeout = 10s,
+            original = true
+        }
+
+        # if it doesn't succeed, tries these mirrors, automatically ordered by ping. (re-pinged every [reping_interval])
+        {
+            timeout = 6s,
+            options = [
+                "https://dl.t2sde.org/mirror/trunk",
+                "https://t2-dl.thenightswatch.co.uk/"
+            ]
+        }
+    ]
+}

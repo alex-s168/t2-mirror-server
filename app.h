@@ -11,57 +11,67 @@
 #include "allib/dynamic_list/dynamic_list.h"
 #include "slowdb/inc/slowdb.h"
 
+#ifdef __clang__
+# define A_NOT_NULL _Nonnull
+# define A_NULL _Null
+#else
+# define A_NOT_NULL /**/
+# define A_NULL /**/
+#endif
+
 typedef struct {
-    uint16_t port;
+    double delay;
+    char const* A_NOT_NULL url;
+} Mirror;
 
-    char const * files_path;
+typedef struct {
+    size_t donwload_timeout_ms;
 
-    double mirrors_recache_intvl;
+    bool is_original;
 
-    char  ** upstream_mirrors;
-    size_t   upstream_mirrors_len;
+    DynamicList TYPES(Mirror) items;
+} MirrorsBundle;
 
+typedef struct {
+    DynamicList TYPES(MirrorsBundle) bundles;
+} Mirrors;
+
+typedef struct {
+    char const * A_NOT_NULL bind;
+
+    char const * A_NOT_NULL files_path;
+
+    __attribute__((deprecated("always disabled now")))
     bool enable_remoteurl;
 
     __attribute__((deprecated("svn always enabled now")))
     bool svn;
     double svn_up_intvl;
-    char const * svn_repo_path;
+    char const * A_NOT_NULL svn_repo_path;
 
     size_t http_threads;
     size_t conc_downloads;
 
     bool enable_package_stats;
 
-    size_t download_timeout_ms;
+    size_t mirror_reping_ms;
+
+    Mirrors mirrors;
 } AppCfg;
 
 void AppCfg_parse(AppCfg* cfg);
 
 typedef struct {
-    double delay;
-    char * url;
-} Mirror;
-
-typedef struct {
-    Mirror* items;
-    size_t  count;
-} Mirrors;
-
-Mirrors get_mirrors(AppCfg const* cfg);
-void free_mirrors(Mirrors m);
-
-typedef struct {
     pthread_mutex_t dlding;
-    char const* fname;
+    char const * A_NOT_NULL fname;
     _Atomic size_t rc;
     int status;
 } AlreadyDownloading;
 
 typedef struct {
     /** allocation base */
-    char * name;
-    char const* url;
+    char * A_NOT_NULL name;
+    char const * A_NOT_NULL url;
 } SvnDwPkg;
 
 // TODO: replace with hashtab eventually

@@ -4,13 +4,14 @@
 #include <hocon.h>
 #include <assert.h>
 #include <ctype.h>
+#include "allib/dynamic_list/dynamic_list.h"
 #include "app.h"
 
 static cJSON* get_expect(cJSON* obj, char const* name) {
     cJSON* out = cJSON_GetObjectItem(obj, name);
     if (out == NULL) {
         ERRF("no member called \"%s\"", name);
-	exit(1);
+        exit(1);
     }
     return out;
 }
@@ -49,6 +50,10 @@ static double parse_time(cJSON* obj) {
     return num * mult;
 }
 
+static size_t parse_time_ms(cJSON* obj) {
+    return (size_t) (parse_time(obj) * 1000);
+}
+
 static bool expect_bool(cJSON* j) {
     assert(cJSON_IsBool(j));
     return cJSON_IsTrue(j);
@@ -65,10 +70,10 @@ void AppCfg_parse(AppCfg* cfg)
         }
         else {
             cfg_path = "/etc/t2-mirror-server.hocon";
-	    if (access(cfg_path, F_OK) != 0) {
-	        ERRF("could not find suitable config! tried: \"config.hocon\", \"config.hocon.def\", \"%s\"", cfg_path);
+            if (access(cfg_path, F_OK) != 0) {
+                ERRF("could not find suitable config! tried: \"config.hocon\", \"config.hocon.def\", \"%s\"", cfg_path);
                 exit(1);
-	    }
+            }
         }
     }
 
@@ -76,45 +81,17 @@ void AppCfg_parse(AppCfg* cfg)
     cJSON* j = hocon_parse_file(cfg_path);
     if (!j) {
         ERRF("syntax error in config");
-	exit(1);
+        exit(1);
     }
 
-    cfg->port = (uint16_t) cJSON_GetNumberValue(get_expect(j, "port"));
+    cfg->bind = cJSON_GetStringValue(get_expect(j, "bind"));
+    assert(cfg->bind);
 
     cfg->files_path = cJSON_GetStringValue(get_expect(j, "files_path"));
     LOGF("data directory: \"%s\"", cfg->files_path);
 
-    cfg->mirrors_recache_intvl = parse_time(get_expect(j, "mirrors_recache_interval_s"));
-    LOGF("will re-cache mirrors every %f seconds", cfg->mirrors_recache_intvl);
-
-    {
-        cJSON* arr = cJSON_GetObjectItem(j, "backing_mirrors");
-        if (!arr) {
-            cfg->upstream_mirrors_len = 0;
-            cfg->upstream_mirrors = NULL;
-        } else {
-            cfg->upstream_mirrors_len = cJSON_GetArraySize(arr);
-            cfg->upstream_mirrors = malloc(sizeof(char*) * cfg->upstream_mirrors_len);
-            for (size_t i = 0; i < cfg->upstream_mirrors_len; i ++) {
-                cfg->upstream_mirrors[i] = cJSON_GetStringValue(cJSON_GetArrayItem(arr, i));
-            }
-        }
-    }
-
-    cfg->enable_remoteurl = expect_bool(get_expect(j, "enable_remoteurl"));
-
-    cJSON* svn = get_expect(j, "svn");
-
-    cfg->svn = true;
-    cfg->svn_up_intvl = parse_time(get_expect(svn, "up_interval_s"));
-    cfg->svn_repo_path = cJSON_GetStringValue(get_expect(svn, "repo_path"));
-
-    LOGF("svn repo path: %s", cfg->svn_repo_path);
-    LOGF("will update svn every %f seconds", cfg->svn_up_intvl);
-
     cfg->http_threads = (size_t) cJSON_GetNumberValue(get_expect(j, "http_threads"));
     cfg->conc_downloads = (size_t) cJSON_GetNumberValue(get_expect(j, "conc_downloads"));
-
     if (cfg->http_threads == 0 || cfg->conc_downloads == 0) {
         ERRF("invalid config (num threads)");
         exit(1);
@@ -122,5 +99,53 @@ void AppCfg_parse(AppCfg* cfg)
 
     cfg->enable_package_stats = expect_bool(get_expect(j, "enable_package_stats"));
 
-    cfg->download_timeout_ms = parse_time(get_expect(svn, "download_timeout"));
+    {
+        cJSON* svn = get_expect(j, "svn");
+
+        cfg->svn = true;
+        cfg->svn_up_intvl = parse_time(get_expect(svn, "up_interval_s"));
+        cfg->svn_repo_path = cJSON_GetStringValue(get_expect(svn, "repo_path"));
+
+        LOGF("svn repo path: %s", cfg->svn_repo_path);
+        LOGF("will update svn every %f seconds", cfg->svn_up_intvl);
+    }
+
+    {
+        cJSON* download = get_expect(j, "download");
+
+        cfg->mirror_reping_ms = parse_time_ms(get_expect(download, "reping_interval"));
+
+        cJSON* order = get_expect(download, "try_order");
+
+        DynamicList_init(&cfg->mirrors.bundles, sizeof(MirrorsBundle), getLIBCAlloc(), 0);
+
+        cJSON* elt;
+        cJSON_ArrayForEach(elt, order)
+        {
+            MirrorsBundle bundle;
+            bundle.donwload_timeout_ms = parse_time_ms(get_expect(elt, "timeout"));
+
+            DynamicList_init(&bundle.items, sizeof(Mirror), getLIBCAlloc(), 0);
+
+            cJSON* original = cJSON_GetObjectItem(elt, "original");
+            if (original && cJSON_IsTrue(original))
+            {
+                bundle.is_original = true;
+            }
+            else {
+                cJSON* options = get_expect(elt, "options");
+
+                cJSON* opt;
+                cJSON_ArrayForEach(opt, options)
+                {
+                    char const* name = cJSON_GetStringValue(opt);
+                    Mirror m = {0};
+                    m.url = name;
+                    *(Mirror*)DynamicList_addp(&bundle.items) = m;
+                }
+            }
+
+            *(MirrorsBundle*)DynamicList_addp(&cfg->mirrors.bundles) = bundle;
+        }
+    }
 }

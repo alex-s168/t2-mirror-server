@@ -420,8 +420,9 @@ int main(int argc, char **argv)
 
     App app = {0};
     AppCfg_parse(&app.cfg);
-
     ensure_dir(app.cfg.files_path);
+
+    app.mirrors = app.cfg.mirrors;
 
     if (app.cfg.enable_package_stats) {
         slowdb_open_opts opts;
@@ -486,7 +487,7 @@ int main(int argc, char **argv)
     pthread_t upthrd;
 
     HttpCfg cfg = (HttpCfg) {
-        .port = app.cfg.port,
+        .bind = app.cfg.bind,
         .reuse = 1,
         .num_threads = app.cfg.http_threads,
         .con_sleep_us = 1000 * (/*ms*/ 5),
@@ -498,7 +499,7 @@ int main(int argc, char **argv)
         ERRF("can't start http server");
         return 1;
     }
-    LOGF("launched on %u", app.cfg.port);
+    LOGF("Listening on %s", app.cfg.bind);
     while (true) {
         http_tick(server);
 
@@ -507,7 +508,7 @@ int main(int argc, char **argv)
         if (!app.reloading_mirrors_async)
         {
             double diff = time_elapsed_seconds(last_mirrors_reload, now);
-            if (diff >= app.cfg.mirrors_recache_intvl)
+            if (diff >= app.cfg.mirror_reping_ms)
             {
                 app.reloading_mirrors_async = true;
                 last_mirrors_reload = now;
