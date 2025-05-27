@@ -1,5 +1,6 @@
 #include "allib/kallok/kallok.h"
 #include <ctype.h>
+#include <errno.h>
 #include <pthread.h>
 #include "app.h"
 #include <string.h>
@@ -415,6 +416,24 @@ int main(int argc, char **argv)
     ensure_dir(app.cfg.files_path);
 
     app.mirrors = app.cfg.mirrors;
+
+    if ( access(app.cfg.files_path, R_OK) )
+    {
+        if (errno == ENOENT)
+        {
+            ERRF("data dir doesn't exist: %s", app.cfg.files_path);
+        }
+        else {
+            ERRF("don't have read permissions on data dir: %s", app.cfg.files_path);
+        }
+        return 1;
+    }
+
+    if ( access(app.cfg.files_path, W_OK) )
+    {
+        ERRF("don't have write permissions on data dir: %s", app.cfg.files_path);
+        return 1;
+    }
 
     if (app.cfg.enable_package_stats) {
         slowdb_open_opts opts;
