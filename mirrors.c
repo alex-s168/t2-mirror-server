@@ -30,6 +30,7 @@ static double measure_ping(const char * url)
     curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 1L);
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, discard_data);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 3 * 1000);
 
     res = curl_easy_perform(curl);
 
@@ -109,7 +110,7 @@ size_t download_write(void *ptr, size_t size, size_t nmemb, FILE *stream) {
 }
 
 // 0 = ok
-static int download(char const* outpath, char const* url)
+static int download(App* app, char const* outpath, char const* url)
 {
     LOGF("trying %s", url);
 
@@ -121,6 +122,7 @@ static int download(char const* outpath, char const* url)
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, download_write);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, file);
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, app->cfg.download_timeout_ms);
     int status = curl_easy_perform(curl) != CURLE_OK;
     if (status == 0) {
         CURLcode code;
@@ -161,7 +163,7 @@ static int mirror_download(App* app, char const* filename, char* outpath, Mirror
 
     ensure_prefix_dir(app, filename[0]);
 
-    int ok = download(outpath, url);
+    int ok = download(app, outpath, url);
     if (ok != 0) {
         remove(outpath);
     }
@@ -232,7 +234,7 @@ int ensure_downloaded(App* app, char const* filename, char const* orig_url)
         if (!anyok && orig_url != NULL)
         {
             ensure_prefix_dir(app, filename[0]);
-            int ok = download(outpath, orig_url);
+            int ok = download(app, outpath, orig_url);
             if (ok != 0) {
                 remove(outpath);
                 LOGF("could NOT download %s from original url %s", filename, orig_url);

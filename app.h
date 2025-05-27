@@ -23,6 +23,7 @@ typedef struct {
 
     bool enable_remoteurl;
 
+    __attribute__((deprecated("svn always enabled now")))
     bool svn;
     double svn_up_intvl;
     char const * svn_repo_path;
@@ -31,6 +32,8 @@ typedef struct {
     size_t conc_downloads;
 
     bool enable_package_stats;
+
+    size_t download_timeout_ms;
 } AppCfg;
 
 void AppCfg_parse(AppCfg* cfg);

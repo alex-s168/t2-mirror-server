@@ -89,33 +89,28 @@ void AppCfg_parse(AppCfg* cfg)
 
     {
         cJSON* arr = cJSON_GetObjectItem(j, "backing_mirrors");
-	if (!arr) {
+        if (!arr) {
             cfg->upstream_mirrors_len = 0;
-	    cfg->upstream_mirrors = NULL;
-	} else {
+            cfg->upstream_mirrors = NULL;
+        } else {
             cfg->upstream_mirrors_len = cJSON_GetArraySize(arr);
             cfg->upstream_mirrors = malloc(sizeof(char*) * cfg->upstream_mirrors_len);
             for (size_t i = 0; i < cfg->upstream_mirrors_len; i ++) {
                 cfg->upstream_mirrors[i] = cJSON_GetStringValue(cJSON_GetArrayItem(arr, i));
             }
-	}
+        }
     }
 
     cfg->enable_remoteurl = expect_bool(get_expect(j, "enable_remoteurl"));
 
-    cJSON* svn = cJSON_GetObjectItem(j, "svn");
-    if (svn) {
-        cfg->svn = true;
-        cfg->svn_up_intvl = parse_time(get_expect(svn, "up_interval_s"));
-	cfg->svn_repo_path = cJSON_GetStringValue(get_expect(svn, "repo_path"));
+    cJSON* svn = get_expect(j, "svn");
 
-	LOGF("svn repo path: %s", cfg->svn_repo_path);
-        LOGF("will update svn every %f seconds", cfg->svn_up_intvl);
-    } else {
-        cfg->svn = false;
-        cfg->svn_up_intvl = 0;
-	cfg->svn_repo_path = NULL;
-    }
+    cfg->svn = true;
+    cfg->svn_up_intvl = parse_time(get_expect(svn, "up_interval_s"));
+    cfg->svn_repo_path = cJSON_GetStringValue(get_expect(svn, "repo_path"));
+
+    LOGF("svn repo path: %s", cfg->svn_repo_path);
+    LOGF("will update svn every %f seconds", cfg->svn_up_intvl);
 
     cfg->http_threads = (size_t) cJSON_GetNumberValue(get_expect(j, "http_threads"));
     cfg->conc_downloads = (size_t) cJSON_GetNumberValue(get_expect(j, "conc_downloads"));
@@ -126,4 +121,6 @@ void AppCfg_parse(AppCfg* cfg)
     }
 
     cfg->enable_package_stats = expect_bool(get_expect(j, "enable_package_stats"));
+
+    cfg->download_timeout_ms = parse_time(get_expect(svn, "download_timeout"));
 }

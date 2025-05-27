@@ -1,3 +1,12 @@
+# config format:
+#   time amounts can be floats, and have a unit:
+#     3s
+#     3.3s
+#     5m
+#     8h
+#     2D
+#     9W
+
 port = 8070
 
 # where to store all the downloaded files
@@ -11,13 +20,14 @@ conc_downloads = 4
 
 mirrors_recache_interval_s = 16m
 
+# timeout for download of a package
+download_timeout = 6s
+
 # allow cache download requests to make this server download a file
 # should be disabled if this server is publicly accessible!
 enable_remoteurl = false
 
 # clone the T2 source, to get this to know official downlaod name - url pairs 
-# (recommended for publicly accessible server)
-# to disable: comment out the following lines
 svn {
     # warning: a update slows down the server a bit
     up_interval_s = 32m
@@ -25,7 +35,7 @@ svn {
     repo_path = "/var/t2-mirror-server/t2-trunk"
 }
 
-# if you disable svn, add: "http://dl.t2sde.org/mirror/trunk"
+# you can add other mirros like "https://dl.t2sde.org/mirror/trunk", which are used if the original URL is incasseible.
 backing_mirrors = []
 
 # this adds some extra (minimal) overhead to requests, and also requires more storage
