@@ -180,24 +180,23 @@ char* get_local_path(App* app, char const* filename)
     return outpath;
 }
 
-int ensure_downloaded(App* app, char const* filename, char const* orig_url) 
+int ensure_downloaded(App* app, char const* filename) 
 {
-    if (app->cfg.svn && orig_url == NULL)
+    char const* orig_url = NULL;
+
+    pthread_rwlock_rdlock(&app->svn_pkgs_mut);
+
+    for (size_t i = 0; i < app->svn_pkgs.fixed.len; i ++)
     {
-        pthread_rwlock_rdlock(&app->svn_pkgs_mut);
-
-        for (size_t i = 0; i < app->svn_pkgs.fixed.len; i ++)
-        {
-            SvnDwPkg* pkg = (SvnDwPkg*)FixedList_get(app->svn_pkgs.fixed, i);
-            if (!strcmp(pkg->name, filename)) {
-                LOGF("found package url in T2 source: \"%s\" = \"%s\"", filename, pkg->url);
-                orig_url = pkg->url;
-                break;
-            }
+        SvnDwPkg* pkg = (SvnDwPkg*)FixedList_get(app->svn_pkgs.fixed, i);
+        if (!strcmp(pkg->name, filename)) {
+            LOGF("found package url in T2 source: \"%s\" = \"%s\"", filename, pkg->url);
+            orig_url = pkg->url;
+            break;
         }
-
-        pthread_rwlock_unlock(&app->svn_pkgs_mut);
     }
+
+    pthread_rwlock_unlock(&app->svn_pkgs_mut);
 
     StartDonwloadingRes conc = start_currently_downloading(app, filename);
     if (conc.is_already_doing)
@@ -210,6 +209,11 @@ int ensure_downloaded(App* app, char const* filename, char const* orig_url)
     int anyok = 0;
 
     if (access(outpath, F_OK) != 0) {
+        if (!orig_url) {
+            LOGF("%s doesn't exsit in T2 master", filename);
+            return 1;
+        }
+
         LOGF("%s is not yet cached", filename);
 
         pthread_rwlock_rdlock(&app->mirrors_lock);

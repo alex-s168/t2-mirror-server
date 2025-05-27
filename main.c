@@ -27,9 +27,6 @@ static DynamicList TYPES(char) gen_readme(App* app)
 
     addstr("# T/2 download cache\n");
     addstr("use by adding the url of this to your /usr/src/t2-src/download/Mirror-Cache file\n");
-    if (app->cfg.enable_remoteurl) {
-        addstr("warning: enable_remoteurl is enabled, which means that anyone with access to this server can cache files with fake URLs!\n");
-    }
     addstr("\n");
     addstr("you can see all the cached files and statistics in /stats.csv\n");
     addstr("note that that might not contain all packages, since statistic tracking is new\n");
@@ -160,16 +157,11 @@ static struct HttpResponse serve(struct HttpRequest request, void* userdata)
 
     if (strlen(request.path) > 3 && request.path[0] == '/' && request.path[2] == '/') {
         char const* reqfile = request.path + 3;
-        char const* original = http_header_get(&request, "X-Orig-URL");
 
-        if (!app->cfg.enable_remoteurl) {
-            original = NULL;
-        }
+        LOGF("requested: \"%s\"", reqfile);
 
-        LOGF("requested: \"%s\" (original: \"%s\")", reqfile, original ? original : "null");
-
-        int status = ensure_downloaded(app, reqfile, original);
-        if (status == 0) {
+        if ( 0 == ensure_downloaded(app, reqfile) )
+        {
             char* path = get_local_path(app, reqfile);
             FILE* f = fopen(path, "rb");
             free(path);
@@ -442,7 +434,7 @@ int main(int argc, char **argv)
         pthread_mutex_init(&app.per_packet_db_lock, 0);
     }
 
-    if (app.cfg.svn) {
+    /* SVN */ {
         if ( system("svn --version > /dev/null") != 0 ) {
             ERRF("could not find svn in PATH");
             return 1;
@@ -465,10 +457,6 @@ int main(int argc, char **argv)
     }
 
     LOGF("using %zu threads", app.cfg.http_threads);
-
-    if (app.cfg.enable_remoteurl) {
-        WARNF("enable_remoteurl is enabled, because of that, make sure that this server is not publicly accessible");
-    }
 
     pthread_rwlock_init(&app.mirrors_lock, 0);
     pthread_mutex_init(&app.currently_downloading_lock, 0);
@@ -516,7 +504,7 @@ int main(int argc, char **argv)
             }
         }
 
-        if (app.cfg.svn && !app.reloading_svn_async)
+        if ( !app.reloading_svn_async )
         {
             double diff = time_elapsed_seconds(last_svn_up, now);
             if (force_svn_up || diff >= app.cfg.svn_up_intvl)

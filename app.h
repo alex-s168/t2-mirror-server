@@ -41,11 +41,6 @@ typedef struct {
 
     char const * A_NOT_NULL files_path;
 
-    __attribute__((deprecated("always disabled now")))
-    bool enable_remoteurl;
-
-    __attribute__((deprecated("svn always enabled now")))
-    bool svn;
     double svn_up_intvl;
     char const * A_NOT_NULL svn_repo_path;
 
@@ -109,7 +104,7 @@ void remove_currently_downloading(App* app, AlreadyDownloading* m, int status);
 
 void reload_print_mirrors(App* app);
 char* get_local_path(App* app, char const* filename);
-int ensure_downloaded(App* app, char const* filename, char const* orig_url);
+int ensure_downloaded(App* app, char const* filename);
 
 typedef time_t timestamp;
 

@@ -102,7 +102,6 @@ void AppCfg_parse(AppCfg* cfg)
     {
         cJSON* svn = get_expect(j, "svn");
 
-        cfg->svn = true;
         cfg->svn_up_intvl = parse_time(get_expect(svn, "up_interval_s"));
         cfg->svn_repo_path = cJSON_GetStringValue(get_expect(svn, "repo_path"));
 

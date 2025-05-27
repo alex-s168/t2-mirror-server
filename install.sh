@@ -86,7 +86,7 @@ cd allib
 cc build.c -DCC="\"cc\"" $(build_c/slowdb/build.sh) -o build.exe
 ./build.exe all.a
 cd ..
-cc -o a.out *.c C-Http-Server/src/*.c C-Http-Server/thread-pool/*.c allib/build/all.a $(CC=cc slowdb/build.sh) -lcurl -lcjson -DHAS_ZLIB -lz $args
+cc -o a.out *.c C-Http-Server/src/*.c C-Http-Server/thread-pool/*.c allib/build/all.a $(CC=cc slowdb/build.sh) -Wno-nullability-completeness -lcurl -lcjson -DHAS_ZLIB -lz $args
 
 mv a.out /usr/bin/t2-mirror-server
 if [ -f /etc/t2-mirror-server.hocon ]; then
