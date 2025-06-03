@@ -131,7 +131,7 @@ void AppCfg_parse(AppCfg* cfg)
         cJSON* elt;
         cJSON_ArrayForEach(elt, order)
         {
-            MirrorsBundle bundle;
+            MirrorsBundle bundle = {0};
             bundle.donwload_timeout_ms = parse_time_ms(get_expect(elt, "timeout"));
 
             DynamicList_init(&bundle.items, sizeof(Mirror), getLIBCAlloc(), 0);
