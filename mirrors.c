@@ -219,28 +219,28 @@ int ensure_downloaded(App* app, char const* filename)
     if (access(outpath, F_OK) != 0) {
         if (!orig_url) {
             LOGF("%s doesn't exsit in T2 master", filename);
-            return 1;
         }
+        else {
+            LOGF("%s is not yet cached", filename);
 
-        LOGF("%s is not yet cached", filename);
-
-        pthread_rwlock_rdlock(&app->mirrors_lock);
-        
-        for (size_t i = 0; i < app->mirrors.bundles.fixed.len; i ++)
-        {
-            MirrorsBundle const* bundle =
-                (MirrorsBundle const *) FixedList_get(app->mirrors.bundles.fixed, i);
-            int status = mirrorgroup_download(app, filename, outpath, orig_url, bundle);
-            if (status == 0) {
-                LOGF("%s downloaded from download group %zu", filename, i);
-                anyok = 1;
-                break;
-            } else {
-                LOGF("could NOT download %s from group %zu", filename, i);
+            pthread_rwlock_rdlock(&app->mirrors_lock);
+            
+            for (size_t i = 0; i < app->mirrors.bundles.fixed.len; i ++)
+            {
+                MirrorsBundle const* bundle =
+                    (MirrorsBundle const *) FixedList_get(app->mirrors.bundles.fixed, i);
+                int status = mirrorgroup_download(app, filename, outpath, orig_url, bundle);
+                if (status == 0) {
+                    LOGF("%s downloaded from download group %zu", filename, i);
+                    anyok = 1;
+                    break;
+                } else {
+                    LOGF("could NOT download %s from group %zu", filename, i);
+                }
             }
-        }
 
-        pthread_rwlock_unlock(&app->mirrors_lock);
+            pthread_rwlock_unlock(&app->mirrors_lock);
+        }
     }
     else {
         anyok = 1;

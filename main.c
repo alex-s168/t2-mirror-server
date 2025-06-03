@@ -220,6 +220,7 @@ static struct HttpResponse serve(struct HttpRequest request, void* userdata)
                 };
             } else {
                 fclose(f);
+                ERRF("cannot fopen file just downloaded");
             }
         }
         else {
