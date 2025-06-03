@@ -206,7 +206,7 @@ static struct HttpResponse serve(struct HttpRequest request, void* userdata)
                 return (struct HttpResponse) {
                     .status = 200,
                     .status_msg = "OK",
-                    .content_type = http_detectMime(reqfile),
+                    .content_type = http_detectMime(reqfile, "application/octet-stream"),
                     .content_size = len,
                     .content_mode = HTTP_CONTENT_FILE,
                     .content_val.file = (HttpFileContent) {
