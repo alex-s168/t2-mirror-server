@@ -52,6 +52,8 @@ typedef struct {
     size_t mirror_reping_ms;
 
     Mirrors mirrors;
+
+    int verbose;
 } AppCfg;
 
 void AppCfg_parse(AppCfg* cfg);

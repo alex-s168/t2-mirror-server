@@ -109,9 +109,14 @@ static int download(App* app, char const* outpath, char const* url, size_t timeo
         if (code != 200) 
             status = 1;
     }
+    curl_easy_cleanup(curl);
 
     fclose(file);
-    curl_easy_cleanup(curl);
+
+    if (status) {
+        remove(outpath);
+    }
+
     return status;
 }
 
@@ -128,6 +133,9 @@ static void ensure_prefix_dir(App* app, char prefix)
 // 0 = ok
 static int mirror_download(App* app, char const* filename, char const* outpath, Mirror mirror, size_t timeout_ms)
 {
+    if (mirror.url[0] == '\0')
+        return 1;
+
     char* url = malloc(strlen(mirror.url) + 3 + strlen(filename) + 1);
     if (!url) return 1;
     strcpy(url, mirror.url);

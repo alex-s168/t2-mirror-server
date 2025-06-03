@@ -110,6 +110,10 @@ static struct HttpResponse serve(struct HttpRequest request, void* userdata)
 
     App* app = userdata;
 
+    if (app->cfg.verbose) {
+        LOGF("t2_mirror_server::serve() called");
+    }
+
     if (!strcmp(request.path, "/")) {
         DynamicList TYPES(char) out = gen_readme(app);
 
@@ -493,6 +497,10 @@ int main(int argc, char **argv)
     timestamp last_svn_up = time_now();
     pthread_t upthrd;
 
+    if (app.cfg.verbose) {
+        LOGF("verbose logging enabled");
+    }
+
     HttpCfg cfg = (HttpCfg) {
         .bind = app.cfg.bind,
         .reuse = 1,
@@ -500,6 +508,7 @@ int main(int argc, char **argv)
         .con_sleep_us = 1000 * (/*ms*/ 5),
         .max_enq_con = 128,
         .handler = serve,
+        .verbose = app.cfg.verbose,
     };
     Http* server = http_open(cfg, &app);
     if (server == NULL) {

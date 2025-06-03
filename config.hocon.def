@@ -13,7 +13,10 @@ bind = "0.0.0.0:8070"
 files_path = "/var/t2-mirror-server/data"
 
 # the amount of threads in the thread pool for serving http
-http_threads = 4
+http_threads = 6
+
+# verbose logging for debugging
+verbose = false
 
 # how many concurrent downloads allowed
 conc_downloads = 4

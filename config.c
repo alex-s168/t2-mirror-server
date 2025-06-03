@@ -100,6 +100,16 @@ void AppCfg_parse(AppCfg* cfg)
     cfg->enable_package_stats = expect_bool(get_expect(j, "enable_package_stats"));
 
     {
+        cJSON* verbose = cJSON_GetObjectItem(j, "verbose");
+        if (!verbose) {
+            WARNF("missing config directive: verbose  default to false");
+            cfg->verbose = 0;
+        } else {
+            cfg->verbose = expect_bool(verbose);
+        }
+    }
+
+    {
         cJSON* svn = get_expect(j, "svn");
 
         cfg->svn_up_intvl = parse_time(get_expect(svn, "up_interval_s"));
