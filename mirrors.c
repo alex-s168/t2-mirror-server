@@ -106,12 +106,20 @@ static int download(App* app, char const* outpath, char const* url, size_t timeo
     if (status == 0) {
         CURLcode code;
         curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &code);
-        if (code != 200) 
+        if (code != 200) {
+            WARNF("request failed: %s", url);
             status = 1;
+        }
     }
     curl_easy_cleanup(curl);
 
+    long sz = ftell(file);
     fclose(file);
+
+    if (sz == 0) {
+        WARNF("empty file from: %s", url);
+        status = 1;
+    }
 
     if (status) {
         remove(outpath);
